@@ -94,157 +94,173 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   loginScreen.style.display = 'flex';
 });
 
-function showDashboard() {
+async function showDashboard() {
   loginScreen.style.display = 'none';
   dashboard.style.display = 'block';
+  
+  // ✅ تحميل البيانات الحقيقية من Supabase عند فتح لوحة التحكم
+  if (!DEMO_MODE) {
+    await loadRealDataFromSupabase();
+  }
+  
   initDashboard();
 }
 
+/* ✅ دالة جديدة: تحميل البيانات الحقيقية من Supabase */
+async function loadRealDataFromSupabase() {
+  try {
+    // تحميل الباقات
+    const { data: packagesData } = await supabaseClient.from('packages').select('*').order('sort_order', { ascending: true });
+    if (packagesData) {
+      state.packages = packagesData.map((p, idx) => ({
+        ...p,
+        id: p.key, // استخدم key كـ id محلي للتوافق مع الكود الحالي
+      }));
+    }
+
+    // تحميل المميزات
+    const { data: featuresData } = await supabaseClient.from('features').select('*').order('sort_order', { ascending: true });
+    if (featuresData) {
+      state.features = featuresData.map((f, idx) => ({
+        ...f,
+        id: f.id || `f${idx}`,
+      }));
+    }
+
+    // تحميل المعرض
+    const { data: galleryData } = await supabaseClient.from('gallery').select('*').order('sort_order', { ascending: true });
+    if (galleryData) {
+      state.gallery = galleryData.map((g, idx) => ({
+        ...g,
+        id: g.id || `g${idx}`,
+      }));
+    }
+
+    console.log('✅ تم تحميل البيانات الحقيقية من Supabase بنجاح');
+  } catch (e) {
+    console.warn('⚠️ خطأ في تحميل البيانات من Supabase:', e);
+  }
+}
+
 /* =========================================================
-   INIT (runs once after login)
+   DASHBOARD INIT
    ========================================================= */
-let initialized = false;
 async function initDashboard() {
-  if (initialized) return;
-  initialized = true;
   renderStaticIcons();
-  await renderStats();
+  await renderSettingsAdmin();
   await renderGalleryAdmin();
   await renderFeaturesAdmin();
   await renderPackagesAdmin();
-  await renderAdminCalendar();
-}
-
-async function renderStats() {
-  document.getElementById('statGallery').textContent = state.gallery.length;
-  document.getElementById('statFeatures').textContent = state.features.length;
-  document.getElementById('statPackages').textContent = state.packages.length;
-  const bookedCount = Object.values(state.availability).filter(a =>
-    !a.morning && !a.evening && !a.full_day && !a.overnight
-  ).length;
-  document.getElementById('statBooked').textContent = bookedCount;
+  await renderCalendarAdmin();
 }
 
 /* =========================================================
-   GALLERY ADMIN (site-wide gallery — used as fallback tiles)
+   SETTINGS ADMIN
    ========================================================= */
-const galleryGrid = document.getElementById('galleryAdminGrid');
-const imageUploadInput = document.getElementById('imageUploadInput');
+async function renderSettingsAdmin() {
+  const sec = document.getElementById('sec-settings');
+  if (!sec) return;
+
+  sec.innerHTML = `
+    <div class="admin-section-head">
+      <h3>إعدادات الموقع</h3>
+    </div>
+    <div class="admin-form">
+      <label>رقم الواتساب
+        <input type="tel" id="settingsWhatsapp" placeholder="966XXXXXXXXX">
+      </label>
+      <label>رابط انستقرام
+        <input type="url" id="settingsInstagram" placeholder="https://instagram.com/...">
+      </label>
+      <label>رابط الخريطة (Embed)
+        <input type="url" id="settingsMapEmbed" placeholder="https://maps.google.com/...">
+      </label>
+      <label>اسم الموقع
+        <input type="text" id="settingsLocationName" placeholder="جبل الأخضر، عمان">
+      </label>
+      <button class="btn btn-primary" id="saveSettingsBtn">حفظ الإعدادات</button>
+    </div>
+  `;
+
+  document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+    const settings = {
+      whatsapp_number: document.getElementById('settingsWhatsapp').value,
+      instagram_url: document.getElementById('settingsInstagram').value,
+      map_embed_url: document.getElementById('settingsMapEmbed').value,
+      location_name: document.getElementById('settingsLocationName').value,
+    };
+
+    if (!DEMO_MODE) {
+      const { error } = await supabaseClient.from('settings').update(settings).eq('id', 1);
+      if (error) alert('خطأ في الحفظ: ' + error.message);
+      else alert('تم حفظ الإعدادات بنجاح');
+    } else {
+      alert('أنت في وضع العرض التجريبي. قم بتفعيل Supabase لحفظ البيانات.');
+    }
+  });
+}
+
+/* =========================================================
+   GALLERY ADMIN
+   ========================================================= */
+const galleryList = document.getElementById('galleryAdminList');
 
 async function renderGalleryAdmin() {
-  galleryGrid.innerHTML = state.gallery.map(item => `
-    <div class="admin-grid-item" data-id="${item.id}">
-      ${item.media_type === 'video'
-        ? `<video src="${item.image_path}" muted playsinline preload="metadata"></video><span class="media-badge">فيديو</span>`
-        : item.image_path
-          ? `<img src="${item.image_path}" alt="">`
-          : `<div class="placeholder-tile">${item.placeholder || 'بانتظار الصورة'}</div>`}
-      <button class="remove-btn" data-remove="${item.id}">${icon('trash', 13)}</button>
+  if (!galleryList) return;
+  galleryList.innerHTML = state.gallery.map(g => `
+    <div class="admin-list-item" data-id="${g.id}">
+      <div class="li-left">
+        <div class="gallery-thumb" style="background: #ddd; width: 60px; height: 60px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999;">
+          ${g.image_path ? `<img src="${g.image_path}" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">` : '📷'}
+        </div>
+        <div>
+          <div class="li-title">${g.placeholder || 'صورة'}</div>
+          <div class="li-sub" style="font-size:0.85rem; color:#999;">${g.image_path ? 'محمّل' : 'لم يتم الرفع بعد'}</div>
+        </div>
+      </div>
+      <button class="btn btn-small" data-upload="${g.id}">رفع صورة</button>
     </div>
   `).join('');
 
-  galleryGrid.querySelectorAll('[data-remove]').forEach(btn => {
-    btn.addEventListener('click', () => removeGalleryItem(btn.dataset.remove));
+  galleryList.querySelectorAll('[data-upload]').forEach(btn => {
+    btn.addEventListener('click', () => uploadGalleryImage(btn.dataset.upload));
   });
 }
 
-document.getElementById('addImageBtn').addEventListener('click', () => imageUploadInput.click());
+async function uploadGalleryImage(galleryId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-imageUploadInput.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const isVideo = file.type.startsWith('video/');
-  const localUrl = URL.createObjectURL(file);
+    if (DEMO_MODE) {
+      alert('أنت في وضع العرض التجريبي. قم بتفعيل Supabase لرفع الصور.');
+      return;
+    }
 
-  if (DEMO_MODE) {
-    state.gallery.push({ id: 'g' + Date.now(), image_path: localUrl, media_type: isVideo ? 'video' : 'image' });
+    const fileName = `${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabaseClient.storage.from('gallery').upload(fileName, file);
+    if (uploadError) {
+      alert('خطأ في الرفع: ' + uploadError.message);
+      return;
+    }
+
+    const publicUrl = supabaseClient.storage.from('gallery').getPublicUrl(fileName).data.publicUrl;
+    const item = state.gallery.find(g => g.id === galleryId);
+    if (item) item.image_path = publicUrl;
+
     await renderGalleryAdmin();
-    await renderStats();
-  } else {
-    const path = `${Date.now()}-${file.name}`;
-    const { error: uploadError } = await supabaseClient.storage.from('gallery').upload(path, file);
-    if (uploadError) { alert('فشل رفع الملف'); return; }
-    await supabaseClient.from('gallery').insert({
-      image_path: path,
-      media_type: isVideo ? 'video' : 'image',
-      sort_order: state.gallery.length,
-    });
-    await renderGalleryAdmin();
-  }
-  imageUploadInput.value = '';
-});
-
-async function removeGalleryItem(id) {
-  if (DEMO_MODE) {
-    state.gallery = state.gallery.filter(g => g.id !== id);
-  } else {
-    await supabaseClient.from('gallery').delete().eq('id', id);
-  }
-  await renderGalleryAdmin();
-  await renderStats();
+    alert('تم رفع الصورة بنجاح');
+  });
+  input.click();
 }
 
 /* =========================================================
-   AMENITIES ADMIN (icon + one/two word label only)
+   FEATURES ADMIN
    ========================================================= */
 const featuresList = document.getElementById('featuresAdminList');
-const AMENITY_ICON_CHOICES = ['amenityPool', 'amenityKids', 'amenityCourt', 'amenityBBQ', 'amenityWifi', 'amenityBed', 'amenityRelax', 'sparkles'];
-
-async function renderFeaturesAdmin() {
-  featuresList.innerHTML = state.features.map(f => `
-    <div class="admin-list-item" data-id="${f.id}">
-      <div class="li-left">
-        <button class="li-icon" data-pick-icon="${f.id}" title="اضغط لتغيير الأيقونة" style="cursor:pointer">${icon(f.icon || 'sparkles', 18)}</button>
-        <div class="li-title" data-edit-title="${f.id}" title="اضغط لتعديل الاسم" style="cursor:pointer">${f.title}</div>
-      </div>
-      <button class="remove-btn" data-remove-feature="${f.id}">${icon('trash', 13)}</button>
-    </div>
-  `).join('');
-
-  featuresList.querySelectorAll('[data-remove-feature]').forEach(btn => {
-    btn.addEventListener('click', () => removeFeature(btn.dataset.removeFeature));
-  });
-  featuresList.querySelectorAll('[data-pick-icon]').forEach(btn => {
-    btn.addEventListener('click', () => openIconPicker(btn.dataset.pickIcon));
-  });
-  featuresList.querySelectorAll('[data-edit-title]').forEach(el => {
-    el.addEventListener('click', () => editFeatureTitle(el.dataset.editTitle));
-  });
-}
-
-document.getElementById('addFeatureBtn').addEventListener('click', async () => {
-  const title = prompt('اسم الميزة (كلمة أو كلمتين):');
-  if (!title) return;
-
-  if (DEMO_MODE) {
-    state.features.push({ id: 'f' + Date.now(), icon: 'sparkles', title });
-  } else {
-    await supabaseClient.from('features').insert({ icon: 'sparkles', title, sort_order: state.features.length });
-  }
-  await renderFeaturesAdmin();
-  await renderStats();
-});
-
-async function editFeatureTitle(id) {
-  const feature = state.features.find(f => f.id === id);
-  const newTitle = prompt('اسم الميزة:', feature.title);
-  if (!newTitle) return;
-  feature.title = newTitle;
-  if (!DEMO_MODE) await supabaseClient.from('features').update({ title: newTitle }).eq('id', id);
-  await renderFeaturesAdmin();
-}
-
-async function removeFeature(id) {
-  if (DEMO_MODE) {
-    state.features = state.features.filter(f => f.id !== id);
-  } else {
-    await supabaseClient.from('features').delete().eq('id', id);
-  }
-  await renderFeaturesAdmin();
-  await renderStats();
-}
-
-/* ---------- Icon picker popover ---------- */
 let pickingFeatureId = null;
 
 function buildIconPicker() {
@@ -287,12 +303,31 @@ async function selectFeatureIcon(iconKey) {
   await renderFeaturesAdmin();
 }
 
+async function renderFeaturesAdmin() {
+  if (!featuresList) return;
+  featuresList.innerHTML = state.features.map(f => `
+    <div class="admin-list-item" data-id="${f.id}">
+      <div class="li-left">
+        <span class="li-icon">${icon(f.icon || 'gift', 18)}</span>
+        <div class="li-title">${f.title}</div>
+      </div>
+      <button class="btn btn-small" data-pick="${f.id}">تغيير الأيقونة</button>
+    </div>
+  `).join('');
+
+  featuresList.querySelectorAll('[data-pick]').forEach(btn => {
+    btn.addEventListener('click', () => openIconPicker(btn.dataset.pick));
+  });
+}
+
 /* =========================================================
    PACKAGES ADMIN (price editing)
+   ✅ تم إصلاح: استخدام 'key' بدلاً من 'id' في التحديثات
    ========================================================= */
 const packagesList = document.getElementById('packagesAdminList');
 
 async function renderPackagesAdmin() {
+  if (!packagesList) return;
   packagesList.innerHTML = state.packages.map(p => `
     <div class="admin-list-item" data-id="${p.id}">
       <div class="li-left">
@@ -304,14 +339,14 @@ async function renderPackagesAdmin() {
       </div>
       <div class="package-time-fields">
         <label>وقت البداية
-          <input type="time" data-start="${p.id}" value="${p.start_time || ''}">
+          <input type="time" data-start="${p.key}" value="${p.start_time || ''}">
         </label>
         <span class="package-time-arrow">←</span>
         <label>وقت النهاية
-          <input type="time" data-end="${p.id}" value="${p.end_time || ''}">
+          <input type="time" data-end="${p.key}" value="${p.end_time || ''}">
         </label>
       </div>
-      <span class="li-price" data-price="${p.id}" title="اضغط للتعديل" style="cursor:pointer">${p.price} ر.ع</span>
+      <span class="li-price" data-price="${p.key}" title="اضغط للتعديل" style="cursor:pointer">${p.price} ر.ع</span>
     </div>
   `).join('');
 
@@ -326,25 +361,27 @@ async function renderPackagesAdmin() {
   });
 }
 
-async function updatePackageTime(id, field, value) {
-  const pkg = state.packages.find(p => p.id === id);
+// ✅ تم الإصلاح: استخدام 'key' بدلاً من 'id'
+async function updatePackageTime(key, field, value) {
+  const pkg = state.packages.find(p => p.key === key);
   if (!pkg || !value) return;
   pkg[field] = value;
 
   if (!DEMO_MODE) {
-    await supabaseClient.from('packages').update({ [field]: value }).eq('id', id);
+    await supabaseClient.from('packages').update({ [field]: value }).eq('key', key);
   }
   await renderPackagesAdmin();
 }
 
-async function editPackagePrice(id) {
-  const pkg = state.packages.find(p => p.id === id);
+// ✅ تم الإصلاح: استخدام 'key' بدلاً من 'id'
+async function editPackagePrice(key) {
+  const pkg = state.packages.find(p => p.key === key);
   const newPrice = prompt(`السعر الجديد لباقة "${pkg.name}" (ر.ع):`, pkg.price);
   if (newPrice === null || isNaN(parseFloat(newPrice))) return;
   pkg.price = parseFloat(newPrice);
 
   if (!DEMO_MODE) {
-    await supabaseClient.from('packages').update({ price: pkg.price }).eq('id', id);
+    await supabaseClient.from('packages').update({ price: pkg.price }).eq('key', key);
   }
   await renderPackagesAdmin();
 }
@@ -352,151 +389,97 @@ async function editPackagePrice(id) {
 /* =========================================================
    CALENDAR ADMIN
    ========================================================= */
-const DOW_LABELS = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
-const MONTH_LABELS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const calendarContainer = document.getElementById('calendarAdminContainer');
+let calendarViewYear = new Date().getFullYear();
+let calendarViewMonth = new Date().getMonth();
 
-let adminYear = new Date().getFullYear();
-let adminMonth = new Date().getMonth();
+async function renderCalendarAdmin() {
+  if (!calendarContainer) return;
 
-function pad(n) { return String(n).padStart(2, '0'); }
-function dateKey(y, m, d) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
+  const monthLabel = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][calendarViewMonth];
+  const firstDay = new Date(calendarViewYear, calendarViewMonth, 1);
+  const lastDay = new Date(calendarViewYear, calendarViewMonth + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay();
 
-function getDayAvailability(key) {
-  return state.availability[key] || { morning: true, evening: true, full_day: true, overnight: true };
-}
-
-function statusForDay(avail) {
-  const values = [avail.morning, avail.evening, avail.full_day, avail.overnight];
-  const count = values.filter(Boolean).length;
-  if (count === 0) return 'booked';
-  if (count === values.length) return 'available';
-  return 'partial';
-}
-
-async function renderAdminCalendar() {
-  document.getElementById('adminCalendarTitle').textContent = `${MONTH_LABELS[adminMonth]} ${adminYear}`;
-  document.getElementById('adminDowRow').innerHTML = DOW_LABELS.map(d => `<div>${d}</div>`).join('');
-  renderStaticIcons();
-
-  if (!DEMO_MODE) {
-    const remote = await fetchAvailability(adminYear, adminMonth);
-    if (remote) remote.forEach(row => { state.availability[row.date] = row; });
-  }
-
-  const firstDay = new Date(adminYear, adminMonth, 1).getDay();
-  const daysInMonth = new Date(adminYear, adminMonth + 1, 0).getDate();
-
-  let cells = '';
-  for (let i = 0; i < firstDay; i++) cells += `<div class="admin-day-cell empty"></div>`;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const key = dateKey(adminYear, adminMonth, d);
-    const status = statusForDay(getDayAvailability(key));
-    cells += `<div class="admin-day-cell ${status}" data-date="${key}">${d}</div>`;
-  }
-
-  const grid = document.getElementById('adminCalendarGrid');
-  grid.innerHTML = cells;
-  grid.querySelectorAll('.admin-day-cell:not(.empty)').forEach(cell => {
-    cell.addEventListener('click', () => openDayPopover(cell.dataset.date));
-  });
-}
-
-document.getElementById('adminPrevMonth').addEventListener('click', () => {
-  adminMonth--; if (adminMonth < 0) { adminMonth = 11; adminYear--; }
-  renderAdminCalendar();
-});
-document.getElementById('adminNextMonth').addEventListener('click', () => {
-  adminMonth++; if (adminMonth > 11) { adminMonth = 0; adminYear++; }
-  renderAdminCalendar();
-});
-
-/* ---------- Day popover ---------- */
-let popoverKey = null;
-
-function buildPopover() {
-  const overlay = document.createElement('div');
-  overlay.className = 'day-popover';
-  overlay.id = 'dayPopover';
-  overlay.innerHTML = `
-    <div class="day-popover-card">
-      <h4 id="popoverDate">—</h4>
-      ${['morning','evening','full_day','overnight'].map(k => `
-        <div class="toggle-row">
-          <span>${{morning:'صباحي', evening:'مسائي', full_day:'يوم كامل', overnight:'مع المبيت'}[k]}</span>
-          <label class="switch">
-            <input type="checkbox" data-toggle="${k}">
-            <span class="slider"></span>
-          </label>
-        </div>
-      `).join('')}
-      <div class="day-popover-actions">
-        <button class="btn-close-pop" id="popoverClose">إلغاء</button>
-        <button class="btn-save-pop" id="popoverSave">حفظ</button>
-      </div>
+  let html = `
+    <div class="admin-section-head">
+      <h3>التقويم والتوفر</h3>
     </div>
+    <div class="calendar-nav">
+      <button id="calendarPrevMonth">← الشهر السابق</button>
+      <span>${monthLabel} ${calendarViewYear}</span>
+      <button id="calendarNextMonth">الشهر التالي →</button>
+    </div>
+    <div class="admin-calendar-grid">
   `;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
-  document.getElementById('popoverClose').addEventListener('click', () => overlay.classList.remove('open'));
-  document.getElementById('popoverSave').addEventListener('click', saveDayPopover);
-  return overlay;
-}
 
-const dayPopover = buildPopover();
-
-function openDayPopover(key) {
-  popoverKey = key;
-  const avail = getDayAvailability(key);
-  document.getElementById('popoverDate').textContent = key;
-  dayPopover.querySelectorAll('[data-toggle]').forEach(input => {
-    input.checked = !!avail[input.dataset.toggle];
+  const dayLabels = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+  dayLabels.forEach(day => {
+    html += `<div class="cal-day-header">${day}</div>`;
   });
-  dayPopover.classList.add('open');
-}
 
-async function saveDayPopover() {
-  const updated = {};
-  dayPopover.querySelectorAll('[data-toggle]').forEach(input => {
-    updated[input.dataset.toggle] = input.checked;
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    html += `<div class="cal-empty"></div>`;
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calendarViewYear}-${String(calendarViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const avail = state.availability[dateStr] || { morning: true, evening: true, full_day: true, overnight: true };
+    html += `
+      <div class="cal-day" data-date="${dateStr}">
+        <div class="cal-day-num">${day}</div>
+        <div class="cal-day-status">
+          <label><input type="checkbox" data-slot="morning" ${avail.morning ? 'checked' : ''}> ص</label>
+          <label><input type="checkbox" data-slot="evening" ${avail.evening ? 'checked' : ''}> م</label>
+          <label><input type="checkbox" data-slot="full_day" ${avail.full_day ? 'checked' : ''}> ك</label>
+          <label><input type="checkbox" data-slot="overnight" ${avail.overnight ? 'checked' : ''}> ل</label>
+        </div>
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  calendarContainer.innerHTML = html;
+
+  document.getElementById('calendarPrevMonth').addEventListener('click', () => {
+    calendarViewMonth--;
+    if (calendarViewMonth < 0) { calendarViewMonth = 11; calendarViewYear--; }
+    renderCalendarAdmin();
   });
-  state.availability[popoverKey] = updated;
 
-  if (!DEMO_MODE) {
-    await supabaseClient.from('availability').upsert({ date: popoverKey, ...updated });
-  }
-  dayPopover.classList.remove('open');
-  await renderAdminCalendar();
-  await renderStats();
+  document.getElementById('calendarNextMonth').addEventListener('click', () => {
+    calendarViewMonth++;
+    if (calendarViewMonth > 11) { calendarViewMonth = 0; calendarViewYear++; }
+    renderCalendarAdmin();
+  });
+
+  document.querySelectorAll('.cal-day input[type="checkbox"]').forEach(checkbox => {
+    checkbox.addEventListener('change', async (e) => {
+      const dayEl = e.target.closest('.cal-day');
+      const dateStr = dayEl.dataset.date;
+      const slot = e.target.dataset.slot;
+      const isAvailable = e.target.checked;
+
+      state.availability[dateStr] = state.availability[dateStr] || {};
+      state.availability[dateStr][slot] = isAvailable;
+
+      if (!DEMO_MODE) {
+        const { error } = await supabaseClient.from('availability').upsert({
+          date: dateStr,
+          [slot]: isAvailable,
+        }, { onConflict: 'date' });
+        if (error) console.warn('خطأ في حفظ التوفر:', error);
+      }
+    });
+  });
 }
 
-/* =========================================================
-   LOCATION & SETTINGS
-   ========================================================= */
-document.getElementById('saveLocationBtn').addEventListener('click', async () => {
-  const payload = {
-    location_name: document.getElementById('locName').value,
-    location_description: document.getElementById('locDesc').value,
-    map_embed_url: document.getElementById('locMapUrl').value,
-  };
-  if (!DEMO_MODE) {
-    await supabaseClient.from('settings').update(payload).eq('id', 1);
-  }
-  flashSaved('saveConfirm');
-});
-
-document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
-  const payload = {
-    whatsapp_number: document.getElementById('setWhatsapp').value,
-    instagram_url: document.getElementById('setInstagram').value,
-  };
-  if (!DEMO_MODE) {
-    await supabaseClient.from('settings').update(payload).eq('id', 1);
-  }
-  flashSaved('saveConfirm');
-});
-
-function flashSaved(elId) {
-  const el = document.getElementById(elId);
-  el.textContent = '✓ تم الحفظ بنجاح';
-  setTimeout(() => { el.textContent = ''; }, 2500);
+// ✅ تحميل البيانات عند فتح الصفحة
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    renderStaticIcons();
+  });
+} else {
+  renderStaticIcons();
 }
