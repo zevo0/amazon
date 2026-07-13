@@ -1,6 +1,6 @@
 /* =========================================================
    أمازون شاليه — Main site script
-   Mobile-First Optimized
+   Instant Render + Async Data Loading
    ========================================================= */
 
 /* ---------- Config ---------- */
@@ -11,7 +11,7 @@ const WEEKEND_DAYS = [5, 6];
 const DEPOSIT_PERCENT = 0.4;
 const FULL_PAYMENT_THRESHOLD_DAYS = 3;
 
-/* Demo data */
+/* Demo data — rendered IMMEDIATELY */
 const DEMO_AMENITIES = [
   { id: 'pool', icon: 'amenityPool', title: 'مسبح خاص' },
   { id: 'kids', icon: 'amenityKids', title: 'ألعاب أطفال' },
@@ -42,13 +42,17 @@ const DEMO_PACKAGES = [
 
 const DEFAULT_AVAILABILITY = { morning: true, evening: true, full_day: true, overnight: true };
 
-/* ---------- Header scroll state ---------- */
+/* =========================================================
+   HEADER SCROLL
+   ========================================================= */
 const header = document.getElementById('siteHeader');
 const onScroll = () => header.classList.toggle('scrolled', window.scrollY > 40);
 window.addEventListener('scroll', onScroll, { passive: true });
 onScroll();
 
-/* ---------- Mobile drawer ---------- */
+/* =========================================================
+   MOBILE DRAWER
+   ========================================================= */
 const menuToggle = document.getElementById('menuToggle');
 const mobileDrawer = document.getElementById('mobileDrawer');
 const drawerBackdrop = document.getElementById('drawerBackdrop');
@@ -76,7 +80,9 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && mobileDrawer.classList.contains('open')) closeDrawer();
 });
 
-/* ---------- Reveal on scroll ---------- */
+/* =========================================================
+   REVEAL ON SCROLL
+   ========================================================= */
 const revealObserver = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
@@ -88,7 +94,9 @@ const revealObserver = new IntersectionObserver((entries) => {
 
 document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
 
-/* ---------- Footer year + WhatsApp link ---------- */
+/* =========================================================
+   FOOTER
+   ========================================================= */
 document.getElementById('year').textContent = new Date().getFullYear();
 const footerWhatsapp = document.getElementById('footerWhatsapp');
 if (footerWhatsapp) footerWhatsapp.href = `https://wa.me/${WHATSAPP_NUMBER}`;
@@ -96,13 +104,10 @@ const footerPhone = document.getElementById('footerPhone');
 if (footerPhone) footerPhone.textContent = WHATSAPP_NUMBER.replace(/^968/, '');
 
 /* =========================================================
-   AMENITIES
+   AMENITIES — RENDER IMMEDIATELY
    ========================================================= */
-async function renderAmenities() {
+function renderAmenities(amenities = DEMO_AMENITIES) {
   const row = document.getElementById('amenitiesRow');
-  let amenities = await fetchFeatures();
-  if (!amenities || !amenities.length) amenities = DEMO_AMENITIES;
-
   row.innerHTML = amenities.map((a, i) => `
     <div class="amenity-item" style="animation-delay:${i * 60}ms">
       <div class="amenity-icon">${icon(a.icon || 'sparkles', 32)}</div>
@@ -111,26 +116,25 @@ async function renderAmenities() {
   `).join('');
 }
 
+// Render demo amenities IMMEDIATELY
+renderAmenities();
+
+// Update from Supabase in background (non-blocking)
+if (typeof fetchFeatures === 'function') {
+  fetchFeatures().then(data => {
+    if (data && data.length) renderAmenities(data);
+  }).catch(() => {});
+}
+
 /* =========================================================
-   GALLERY — Lazy loading with intersection observer
+   GALLERY
    ========================================================= */
 let galleryItems = [];
 let galleryInitialized = false;
 
-async function renderGallery() {
+function renderGallery(images = DEMO_GALLERY) {
   const grid = document.getElementById('galleryGrid');
-  let images = await fetchGalleryImages();
-
-  if (images && images.length) {
-    galleryItems = images.map(img => ({
-      src: getPublicImageUrl('gallery', img.image_path) || img.image_path,
-      alt: img.alt_text || CHALET_NAME,
-      wide: !!img.wide,
-      isVideo: img.media_type === 'video',
-    }));
-  } else {
-    galleryItems = DEMO_GALLERY;
-  }
+  galleryItems = images;
 
   grid.innerHTML = galleryItems.map((item, i) => `
     <div class="gallery-grid-item${item.wide ? ' wide' : ''} reveal" data-index="${i}" style="transition-delay:${i * 30}ms">
@@ -147,6 +151,33 @@ async function renderGallery() {
   });
   
   galleryInitialized = true;
+}
+
+// Lazy load gallery when needed
+const gallerySection = document.getElementById('gallery');
+if (gallerySection) {
+  const galleryObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && !galleryInitialized) {
+      renderGallery();
+      galleryObserver.disconnect();
+    }
+  }, { threshold: 0.1 });
+  galleryObserver.observe(gallerySection);
+}
+
+// Update from Supabase in background
+if (typeof fetchGalleryImages === 'function') {
+  fetchGalleryImages().then(images => {
+    if (images && images.length && galleryInitialized) {
+      const mapped = images.map(img => ({
+        src: (typeof getPublicImageUrl === 'function' ? getPublicImageUrl('gallery', img.image_path) : null) || img.image_path,
+        alt: img.alt_text || CHALET_NAME,
+        wide: !!img.wide,
+        isVideo: img.media_type === 'video',
+      }));
+      renderGallery(mapped);
+    }
+  }).catch(() => {});
 }
 
 /* =========================================================
@@ -237,13 +268,12 @@ async function loadAvailabilityForMonth(year, month) {
   return map;
 }
 
-async function renderCalendar() {
+function renderCalendar(avMap = {}) {
+  availabilityMap = avMap;
   document.getElementById('calendarTitle').textContent = `${MONTH_LABELS[viewMonth]} ${viewYear}`;
 
   const dowRow = document.getElementById('dowRow');
   dowRow.innerHTML = DOW_LABELS.map(d => `<div class="dow">${d}</div>`).join('');
-
-  availabilityMap = await loadAvailabilityForMonth(viewYear, viewMonth);
 
   const grid = document.getElementById('calendarGrid');
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
@@ -279,15 +309,25 @@ async function renderCalendar() {
   calendarInitialized = true;
 }
 
+// Render demo calendar immediately
+renderCalendar();
+
+// Update from Supabase in background
+if (typeof fetchAvailability === 'function') {
+  loadAvailabilityForMonth(viewYear, viewMonth).then(map => {
+    renderCalendar(map);
+  }).catch(() => {});
+}
+
 document.getElementById('prevMonth').addEventListener('click', () => {
   viewMonth--;
   if (viewMonth < 0) { viewMonth = 11; viewYear--; }
-  renderCalendar();
+  renderCalendar(availabilityMap);
 });
 document.getElementById('nextMonth').addEventListener('click', () => {
   viewMonth++;
   if (viewMonth > 11) { viewMonth = 0; viewYear++; }
-  renderCalendar();
+  renderCalendar(availabilityMap);
 });
 
 /* =========================================================
@@ -367,8 +407,12 @@ async function openBookingModal(key) {
     : '';
   modalWeekendNote.classList.toggle('weekend', selectedIsWeekend);
 
-  let packages = await fetchPackages();
-  packagesData = (packages && packages.length) ? packages : DEMO_PACKAGES;
+  let packages = packagesData;
+  if (typeof fetchPackages === 'function') {
+    const fetched = await fetchPackages();
+    if (fetched && fetched.length) packages = fetched;
+  }
+  packagesData = packages;
 
   packageList.innerHTML = packagesData.map(pkg => {
     const isAvailable = avail[pkg.key] !== false;
@@ -460,52 +504,8 @@ modalOverlay.addEventListener('click', (e) => {
 });
 
 /* =========================================================
-   MAP: open Google Maps on click
+   MAP
    ========================================================= */
 document.getElementById('mapFrame').addEventListener('click', () => {
   window.open('https://maps.google.com/?q=Jabal+Akhdar+Oman', '_blank');
 });
-
-/* =========================================================
-   LAZY INITIALIZATION — Defer non-critical sections
-   ========================================================= */
-const bookingSection = document.getElementById('booking');
-const gallerySection = document.getElementById('gallery');
-
-if (bookingSection) {
-  const bookingObserver = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting && !calendarInitialized) {
-      renderCalendar();
-      bookingObserver.disconnect();
-    }
-  }, { threshold: 0.1 });
-  bookingObserver.observe(bookingSection);
-}
-
-if (gallerySection) {
-  const galleryObserver = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting && !galleryInitialized) {
-      renderGallery();
-      galleryObserver.disconnect();
-    }
-  }, { threshold: 0.1 });
-  galleryObserver.observe(gallerySection);
-}
-
-/* =========================================================
-   Init — Render immediately visible sections
-   ========================================================= */
-renderAmenities();
-
-// Defer calendar and gallery rendering if they're not in viewport
-if (!calendarInitialized) {
-  setTimeout(() => {
-    if (!calendarInitialized) renderCalendar();
-  }, 1500);
-}
-
-if (!galleryInitialized) {
-  setTimeout(() => {
-    if (!galleryInitialized) renderGallery();
-  }, 1200);
-}

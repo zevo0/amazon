@@ -3,8 +3,8 @@
    Mobile-First Optimized with Enhanced Security
    ========================================================= */
 
-const SUPABASE_URL = 'https://txabrbzppfqnahasmhxw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4YWJyYnpwcGZxbmFoYXNtaHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MzY2NzMsImV4cCI6MjA5OTUxMjY3M30.zgUBQBKeqnTV3Vm8riMiy63vrjzz5UY1l47IpHzlX1Q';
+const SUPABASE_URL = 'https://irnoymfihzlctxqfuhue.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlybm95bWZpaHpsY3R4cWZ1aHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5NTg1NDMsImV4cCI6MjA5OTUzNDU0M30.X0GtMJh6fa_YmeCwyFlf1b5ep4fDHmXSag9oZFFf1n0';
 
 let supabaseClient = null;
 

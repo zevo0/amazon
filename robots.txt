@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 
-Sitemap: https://amazon-chalet.vercel.app/sitemap.xml
+Sitemap: https://amazon-3nm.pages.dev/sitemap.xml
