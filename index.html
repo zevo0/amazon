@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>أمازون شاليه | Amazon Chalet — شاليه فاخر خاص للإيجار في عُمان</title>
+<meta name="description" content="أمازون شاليه، شاليه فاخر خاص للإيجار اليومي في عُمان. مسبح خاص، جلسات خارجية، وهدوء تام بعيدًا عن الزحمة. شاهد الأيام المتاحة واحجز مباشرة عبر واتساب.">
+<meta name="keywords" content="شاليهات للإيجار في عمان, شاليه خاص عمان, حجز شاليه, شاليه مسبح خاص, شاليهات جبل الأخضر, أمازون شاليه, استراحة عمان">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://amazon-chalet.vercel.app/">
+
+<!-- Open Graph / social preview -->
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ar_OM">
+<meta property="og:title" content="أمازون شاليه | Amazon Chalet — شاليه فاخر خاص للإيجار في عُمان">
+<meta property="og:description" content="مسبح خاص، جلسات خارجية، وهدوء تام. شاهد الأيام المتاحة واحجز شاليهك مباشرة عبر واتساب.">
+<meta property="og:image" content="https://amazon-chalet.vercel.app/assets/hero-photo-dusk.webp">
+<meta property="og:url" content="https://amazon-chalet.vercel.app/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="أمازون شاليه | Amazon Chalet">
+<meta name="twitter:description" content="شاليه فاخر خاص للإيجار في عُمان — مسبح خاص وهدوء تام. احجز عبر واتساب.">
+<meta name="twitter:image" content="https://amazon-chalet.vercel.app/assets/hero-photo-dusk.webp">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%232A2F4C' width='100' height='100'/><text x='50' y='60' font-size='40' font-weight='bold' fill='%23C89B5A' text-anchor='middle' font-family='serif'>A</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<link rel="preload" as="image" href="assets/hero-photo-dusk.webp">
+
+<!-- Structured data: helps Google understand this is a bookable lodging business -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "LodgingBusiness",
+  "name": "أمازون شاليه (Amazon Chalet)",
+  "description": "شاليه فاخر خاص للإيجار اليومي في عُمان، يضم مسبحًا خاصًا وجلسات خارجية.",
+  "image": "https://amazon-chalet.vercel.app/assets/hero-photo-dusk.webp",
+  "address": {
+    "@type": "PostalAddress",
+    "addressCountry": "OM"
+  },
+  "priceRange": "OMR 25 - OMR 65"
+}
+</script>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="site-header" id="siteHeader">
+  <div class="container">
+    <div class="brand">
+      <div class="brand-text">
+        <div class="brand-ar">أمازون شاليه</div>
+        <div class="brand-en">AMAZON CHALET</div>
+      </div>
+    </div>
+    <nav class="nav-desktop">
+      <a href="#home">الرئيسية</a>
+      <a href="#amenities">المميزات</a>
+      <a href="#gallery">الصور</a>
+      <a href="#booking">الحجز</a>
+      <a href="#location">الموقع</a>
+      <a href="#footer">تواصل معنا</a>
+    </nav>
+    <div class="header-actions">
+      <a href="#booking" class="btn btn-primary">احجز الآن</a>
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="القائمة" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ============ MOBILE DRAWER ============ -->
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<div class="mobile-drawer" id="mobileDrawer" role="dialog" aria-modal="true">
+  <div class="drawer-top">
+    <div class="drawer-logo">
+      <div class="brand-ar">أمازون شاليه</div>
+      <div class="brand-en">AMAZON CHALET</div>
+    </div>
+    <button class="drawer-close" id="drawerClose" type="button" aria-label="إغلاق">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <nav class="drawer-nav">
+    <a href="#home">الرئيسية</a>
+    <a href="#amenities">المميزات</a>
+    <a href="#gallery">الصور</a>
+    <a href="#booking">الحجز</a>
+    <a href="#location">الموقع</a>
+    <a href="#footer">تواصل معنا</a>
+  </nav>
+  <a href="#booking" class="btn btn-primary drawer-cta">احجز الآن</a>
+</div>
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="home">
+  <div class="hero-media">
+    <img src="assets/hero-photo-dusk.webp" alt="أمازون شاليه عند الغروب" class="hero-photo" loading="eager">
+  </div>
+  <div class="hero-content container">
+    <div class="hero-text-wrapper">
+      <h1 class="hero-title">أمازون شاليه</h1>
+      <p class="hero-subtitle">ملاذك الفاخر وسط طبيعة عُمان</p>
+      <div class="hero-actions">
+        <a href="#booking" class="btn btn-primary" id="heroBookBtn">احجز تجربتك الآن</a>
+        <a href="https://wa.me/96890992253" target="_blank" rel="noopener" class="btn btn-secondary">تواصل للحجز</a>
+      </div>
+    </div>
+  </div>
+  <div class="scroll-hint"><span></span></div>
+</section>
+
+<!-- ============ AMENITIES (luxury minimal, icons only) ============ -->
+<section class="amenities" id="amenities">
+  <div class="container">
+    <div class="amenities-row" id="amenitiesRow">
+      <!-- injected by main.js -->
+    </div>
+  </div>
+</section>
+
+<!-- ============ GALLERY (single unified gallery) ============ -->
+<section class="gallery" id="gallery">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow" style="justify-content:center">معرض الصور</p>
+      <h2 class="section-title">لحظات تستحق أن تُعاش</h2>
+      <p class="section-sub" style="margin:0 auto">جولة بصرية داخل أمازون شاليه</p>
+    </div>
+    <div class="gallery-grid" id="galleryGrid">
+      <!-- injected by main.js -->
+    </div>
+  </div>
+</section>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose" aria-label="إغلاق">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+  <button class="lightbox-nav prev" id="lightboxPrev" aria-label="السابق">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+  </button>
+  <img id="lightboxImg" src="" alt="">
+  <video id="lightboxVideo" controls playsinline style="display:none"></video>
+  <button class="lightbox-nav next" id="lightboxNext" aria-label="التالي">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+</div>
+
+<!-- ============ BOOKING ============ -->
+<section class="booking" id="booking">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow" style="justify-content:center">الحجز</p>
+      <h2 class="section-title">اختر يومك</h2>
+      <p class="section-sub" style="margin:0 auto">ثلاث خطوات بسيطة، والباقي عبر واتساب مباشرة</p>
+    </div>
+
+    <!-- Stepper -->
+    <div class="stepper reveal" id="stepper">
+      <div class="step-item active" data-step="1">
+        <div class="step-num">١</div>
+        <div class="step-text">
+          <span class="step-title">اختر يومًا متاحًا</span>
+          <span class="step-desc">من التقويم أدناه</span>
+        </div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step-item" data-step="2">
+        <div class="step-num">٢</div>
+        <div class="step-text">
+          <span class="step-title">اختر الفترة المناسبة</span>
+          <span class="step-desc">صباحي، مسائي، أو يوم كامل</span>
+        </div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step-item" data-step="3">
+        <div class="step-num">٣</div>
+        <div class="step-text">
+          <span class="step-title">تأكيد الطلب</span>
+          <span class="step-desc">عبر واتساب مباشرة</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="calendar-wrap reveal">
+      <div class="calendar-header">
+        <button class="calendar-icon-btn" id="prevMonth" aria-label="الشهر السابق">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <h3 id="calendarTitle">—</h3>
+        <button class="calendar-icon-btn" id="nextMonth" aria-label="الشهر التالي">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <div class="legend">
+        <span><i class="dot-available"></i> متاح</span>
+        <span><i class="dot-partial"></i> متاح جزئيًا</span>
+        <span><i class="dot-booked"></i> محجوز</span>
+        <span><i class="dot-past"></i> غير متاح</span>
+      </div>
+      <div class="calendar-grid" id="dowRow"></div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Booking Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="booking-modal">
+    <button class="modal-close" id="modalClose" aria-label="إغلاق">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="day-card" id="dayCard">
+      <img src="assets/calendar-accent.webp" alt="" class="day-card-bg" loading="lazy">
+      <div class="day-card-overlay"></div>
+      <div class="day-card-content">
+        <p class="day-card-weekday" id="dayCardWeekday">—</p>
+        <p class="day-card-number" id="dayCardNumber">—</p>
+        <p class="day-card-month" id="dayCardMonth">—</p>
+        <span class="day-card-status" id="dayCardStatus"><i></i> متاح</span>
+      </div>
+    </div>
+    <p class="modal-sub" id="modalWeekendNote"></p>
+    <div class="package-list" id="packageList"></div>
+    <div class="booking-summary" id="bookingSummary"></div>
+    <div class="deposit-note" id="depositNote"></div>
+    <button class="whatsapp-btn" id="whatsappBtn">
+      <span class="btn-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1s-.5-.1-.7.1-.8 1-.9 1.2-.3.2-.6.1a7.6 7.6 0 0 1-2.2-1.4 8.4 8.4 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.4-.5.3-.4a.5.5 0 0 0 0-.5c-.1-.1-.7-1.6-.9-2.2s-.4-.5-.7-.5h-.6a1.1 1.1 0 0 0-.8.4 3.4 3.4 0 0 0-1 2.5 6 6 0 0 0 1.3 3.1 13.6 13.6 0 0 0 5.2 4.6c.7.3 1.3.5 1.7.6a4.2 4.2 0 0 0 1.9.1 3.1 3.1 0 0 0 2-1.4 2.5 2.5 0 0 0 .2-1.4c-.1-.1-.3-.2-.6-.3z"/><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      </span>
+      تأكيد الحجز عبر واتساب
+    </button>
+  </div>
+</div>
+
+<!-- ============ LOCATION ============ -->
+<section class="location" id="location">
+  <div class="container location-grid">
+    <div class="map-frame reveal" id="mapFrame">
+      <iframe
+        loading="lazy"
+        src="https://maps.google.com/maps?q=Jabal%20Akhdar%2C%20Oman&t=&z=11&ie=UTF8&iwloc=&output=embed"
+        title="موقع أمازون شاليه"></iframe>
+    </div>
+    <div class="location-info reveal">
+      <p class="eyebrow">الموقع</p>
+      <h3>وسط الطبيعة، وقريب من كل شيء</h3>
+      <p>يقع أمازون شاليه في قلب الطبيعة العُمانية، على بعد دقائق من الطريق الرئيسي، في محيط هادئ يحيط به الجبل والخضرة.</p>
+      <a href="https://maps.google.com/?q=Jabal+Akhdar+Oman" target="_blank" rel="noopener" class="btn btn-dark">فتح الاتجاهات</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="site-footer" id="footer">
+  <div class="container">
+    <div class="footer-brand">
+      <div class="brand-ar">أمازون شاليه</div>
+      <div class="brand-en">AMAZON CHALET</div>
+    </div>
+    <p class="footer-phone" id="footerPhone"></p>
+    <div class="footer-links">
+      <a href="#" id="footerWhatsapp" class="social-btn social-whatsapp" target="_blank" rel="noopener" aria-label="واتساب">
+        <span class="social-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1s-.5-.1-.7.1-.8 1-.9 1.2-.3.2-.6.1a7.6 7.6 0 0 1-2.2-1.4 8.4 8.4 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.4-.5.3-.4a.5.5 0 0 0 0-.5c-.1-.1-.7-1.6-.9-2.2s-.4-.5-.7-.5h-.6a1.1 1.1 0 0 0-.8.4 3.4 3.4 0 0 0-1 2.5 6 6 0 0 0 1.3 3.1 13.6 13.6 0 0 0 5.2 4.6c.7.3 1.3.5 1.7.6a4.2 4.2 0 0 0 1.9.1 3.1 3.1 0 0 0 2-1.4 2.5 2.5 0 0 0 .2-1.4c-.1-.1-.3-.2-.6-.3z"/><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2z"/></svg>
+        </span>
+        <span>واتساب</span>
+      </a>
+      <a href="#" class="social-btn social-instagram" target="_blank" rel="noopener" aria-label="انستقرام">
+        <span class="social-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 1.2.06 2 .25 2.4.42a4.9 4.9 0 0 1 1.8 1.16 4.9 4.9 0 0 1 1.15 1.77c.17.42.36 1.16.42 2.4.06 1.35.07 1.76.07 4.98s0 3.63-.07 4.98c-.06 1.24-.25 1.98-.42 2.4a4.9 4.9 0 0 1-1.16 1.77 4.9 4.9 0 0 1-1.77 1.16c-.42.17-1.16.36-2.4.42-1.35.06-1.76.07-4.98.07s-3.63 0-4.98-.07c-1.24-.06-1.98-.25-2.4-.42a4.9 4.9 0 0 1-1.77-1.16 4.9 4.9 0 0 1-1.16-1.77c-.17-.42-.36-1.16-.42-2.4C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9c.06-1.2.25-2 .42-2.4a4.9 4.9 0 0 1 1.16-1.8A4.9 4.9 0 0 1 5.62 1.7c.42-.17 1.16-.36 2.4-.42C9.37 2.2 9.77 2.2 12 2.2zm0 1.8c-3.15 0-3.53 0-4.77.07-1.03.05-1.6.22-1.97.36-.5.2-.85.42-1.22.8-.38.37-.6.72-.8 1.22-.14.37-.3.94-.36 1.97-.06 1.24-.07 1.62-.07 4.77s0 3.53.07 4.77c.05 1.03.22 1.6.36 1.97.2.5.42.85.8 1.22.37.38.72.6 1.22.8.37.14.94.3 1.97.36 1.24.06 1.62.07 4.77.07s3.53 0 4.77-.07c1.03-.05 1.6-.22 1.97-.36.5-.2.85-.42 1.22-.8.38-.37.6-.72.8-1.22.14-.37.3-.94.36-1.97.06-1.24.07-1.62.07-4.77s0-3.53-.07-4.77c-.05-1.03-.22-1.6-.36-1.97a3.1 3.1 0 0 0-.8-1.22 3.1 3.1 0 0 0-1.22-.8c-.37-.14-.94-.3-1.97-.36-1.24-.06-1.62-.07-4.77-.07z"/><circle cx="12" cy="12" r="3.2"/><circle cx="17.2" cy="6.8" r="1.1"/></svg>
+        </span>
+        <span>انستقرام</span>
+      </a>
+    </div>
+    <p class="footer-copy">© <span id="year"></span> أمازون شاليه — جميع الحقوق محفوظة</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script src="js/icons.js" defer></script>
+<script src="js/time-utils.js" defer></script>
+<script src="js/supabase-client.js" defer></script>
+<script src="js/main.js" defer></script>
+</body>
+</html>

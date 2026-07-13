@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة التحكم | أمازون شاليه</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%232A2F4C' width='100' height='100'/><text x='50' y='60' font-size='40' font-weight='bold' fill='%23C89B5A' text-anchor='middle' font-family='serif'>A</text></svg>">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-ar">أمازون شاليه</div>
+      <div class="brand-en">ADMIN</div>
+    </div>
+    <h1>لوحة التحكم</h1>
+    <p class="login-sub">سجّل الدخول لإدارة الموقع</p>
+    <form id="loginForm">
+      <label>البريد الإلكتروني</label>
+      <input type="email" id="loginEmail" required placeholder="admin@example.com">
+      <label>كلمة المرور</label>
+      <input type="password" id="loginPassword" required placeholder="••••••••">
+      <button type="submit" class="btn-login">تسجيل الدخول</button>
+      <p class="login-error" id="loginError"></p>
+      <p class="login-hint">⚠️ لوحة التحكم محمية: يمكن للمسؤولين فقط الوصول إليها. تأكد من تفعيل Supabase Auth.</p>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD (single scrolling page) ============ -->
+<div class="dashboard-page" id="dashboard" style="display:none">
+
+  <header class="dash-topbar">
+    <div class="dash-brand">
+      <div class="brand-ar">أمازون شاليه</div>
+      <div class="brand-en">ADMIN</div>
+    </div>
+    <nav class="dash-jumpnav">
+      <a href="#sec-overview">نظرة عامة</a>
+      <a href="#sec-gallery">الصور</a>
+      <a href="#sec-features">المميزات</a>
+      <a href="#sec-packages">الباقات</a>
+      <a href="#sec-calendar">التقويم</a>
+      <a href="#sec-location">الموقع</a>
+      <a href="#sec-settings">الإعدادات</a>
+    </nav>
+    <button class="logout-btn" id="logoutBtn"><span class="nav-icon" id="logoutIcon"></span> تسجيل الخروج</button>
+  </header>
+
+  <main class="dash-body">
+
+    <!-- OVERVIEW -->
+    <section class="dash-block" id="sec-overview">
+      <h2>نظرة عامة</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><span class="stat-num" id="statGallery">0</span><span class="stat-label">صور المعرض</span></div>
+        <div class="stat-card"><span class="stat-num" id="statFeatures">0</span><span class="stat-label">المميزات</span></div>
+        <div class="stat-card"><span class="stat-num" id="statPackages">0</span><span class="stat-label">الباقات</span></div>
+        <div class="stat-card"><span class="stat-num" id="statBooked">0</span><span class="stat-label">أيام محجوزة (هذا الشهر)</span></div>
+      </div>
+    </section>
+
+    <!-- GALLERY -->
+    <section class="dash-block" id="sec-gallery">
+      <div class="panel-head">
+        <h2>إدارة الصور</h2>
+        <button class="btn-add" id="addImageBtn"><span class="btn-icon-inline" data-icon="plus"></span> إضافة صورة</button>
+      </div>
+      <input type="file" id="imageUploadInput" accept="image/*,video/*" hidden>
+      <div class="admin-grid" id="galleryAdminGrid"></div>
+    </section>
+
+    <!-- AMENITIES (features) -->
+    <section class="dash-block" id="sec-features">
+      <div class="panel-head">
+        <h2>إدارة المميزات</h2>
+        <button class="btn-add" id="addFeatureBtn"><span class="btn-icon-inline" data-icon="plus"></span> إضافة ميزة</button>
+      </div>
+      <p class="panel-hint">أيقونة + كلمة أو كلمتين فقط لكل ميزة — تظهر في قسم المميزات أعلى الموقع مباشرة تحت الفيديو.</p>
+      <div class="admin-list" id="featuresAdminList"></div>
+    </section>
+
+    <!-- PACKAGES -->
+    <section class="dash-block" id="sec-packages">
+      <h2>إدارة الباقات</h2>
+      <p class="panel-hint">عدّل السعر ووقت البداية/النهاية لكل باقة مباشرة، ويُحفظ فورًا وينعكس على واجهة الحجز.</p>
+      <div class="admin-list" id="packagesAdminList"></div>
+    </section>
+
+    <!-- CALENDAR -->
+    <section class="dash-block" id="sec-calendar">
+      <h2>إدارة التقويم</h2>
+      <p class="panel-hint">اضغط على أي يوم لتحديد حالة كل باقة يدويًا. لون اليوم يتحدّث تلقائيًا.</p>
+      <div class="admin-calendar-wrap">
+        <div class="calendar-header">
+          <button id="adminPrevMonth" data-icon="chevronRight"></button>
+          <h3 id="adminCalendarTitle">—</h3>
+          <button id="adminNextMonth" data-icon="chevronLeft"></button>
+        </div>
+        <div class="admin-dow-row" id="adminDowRow"></div>
+        <div class="admin-calendar-grid" id="adminCalendarGrid"></div>
+      </div>
+    </section>
+
+    <!-- LOCATION -->
+    <section class="dash-block" id="sec-location">
+      <h2>إدارة الموقع الجغرافي</h2>
+      <div class="form-grid">
+        <label>اسم الموقع
+          <input type="text" id="locName" placeholder="أمازون شاليه - جبل الأخضر">
+        </label>
+        <label>الوصف
+          <textarea id="locDesc" rows="3" placeholder="وصف مختصر عن الموقع"></textarea>
+        </label>
+        <label>رابط خرائط قوقل (Embed)
+          <input type="text" id="locMapUrl" placeholder="https://maps.google.com/maps?q=...&output=embed">
+        </label>
+      </div>
+      <button class="btn-save" id="saveLocationBtn">حفظ التغييرات</button>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="dash-block" id="sec-settings">
+      <h2>الإعدادات العامة</h2>
+      <div class="form-grid">
+        <label>رقم واتساب (بدون + وبمقدمة رمز الدولة)
+          <input type="text" id="setWhatsapp" placeholder="96890000000">
+        </label>
+        <label>رابط انستقرام
+          <input type="text" id="setInstagram" placeholder="https://instagram.com/...">
+        </label>
+        <label>فيديو الغلاف الرئيسي (Hero Video)
+          <input type="file" id="setHeroImage" accept="video/*">
+        </label>
+      </div>
+      <button class="btn-save" id="saveSettingsBtn">حفظ الإعدادات</button>
+      <p class="save-confirm" id="saveConfirm"></p>
+    </section>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script src="../js/icons.js" defer></script>
+<script src="../js/time-utils.js" defer></script>
+<script src="../js/supabase-client.js" defer></script>
+<script src="js/admin.js" defer></script>
+</body>
+</html>
