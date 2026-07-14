@@ -154,28 +154,32 @@ function renderGallery(images = DEMO_GALLERY) {
 }
 
 // Lazy load gallery when needed
+let realGalleryData = null;
+
 const gallerySection = document.getElementById('gallery');
 if (gallerySection) {
   const galleryObserver = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting && !galleryInitialized) {
-      renderGallery();
+      renderGallery(realGalleryData || DEMO_GALLERY);
       galleryObserver.disconnect();
     }
   }, { threshold: 0.1 });
   galleryObserver.observe(gallerySection);
 }
 
-// Update from Supabase in background
+// Fetch real Supabase data independently of scroll timing — whichever
+// happens first (fetch resolving, or the user scrolling into view)
+// no longer causes the real data to be silently dropped.
 if (typeof fetchGalleryImages === 'function') {
   fetchGalleryImages().then(images => {
-    if (images && images.length && galleryInitialized) {
-      const mapped = images.map(img => ({
+    if (images && images.length) {
+      realGalleryData = images.map(img => ({
         src: (typeof getPublicImageUrl === 'function' ? getPublicImageUrl('gallery', img.image_path) : null) || img.image_path,
         alt: img.alt_text || CHALET_NAME,
         wide: !!img.wide,
         isVideo: img.media_type === 'video',
       }));
-      renderGallery(mapped);
+      if (galleryInitialized) renderGallery(realGalleryData);
     }
   }).catch(() => {});
 }
