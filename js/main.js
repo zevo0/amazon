@@ -173,12 +173,21 @@ if (gallerySection) {
 if (typeof fetchGalleryImages === 'function') {
   fetchGalleryImages().then(images => {
     if (images && images.length) {
-      realGalleryData = images.map(img => ({
-        src: (typeof getPublicImageUrl === 'function' ? getPublicImageUrl('gallery', img.image_path) : null) || img.image_path,
-        alt: img.alt_text || CHALET_NAME,
-        wide: !!img.wide,
-        isVideo: img.media_type === 'video',
-      }));
+      realGalleryData = images.map(img => {
+        let finalSrc = img.image_path;
+        
+        // إذا كان الرابط يبدأ بـ ../assets/ نقوم بتصحيحه للصفحة الرئيسية
+        if (finalSrc && finalSrc.startsWith('../assets/')) {
+          finalSrc = finalSrc.replace('../assets/', 'assets/');
+        }
+        
+        return {
+          src: finalSrc,
+          alt: img.alt_text || CHALET_NAME,
+          wide: !!img.wide,
+          isVideo: img.media_type === 'video',
+        };
+      });
       if (galleryInitialized) renderGallery(realGalleryData);
     }
   }).catch(() => {});

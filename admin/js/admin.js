@@ -24,9 +24,9 @@ const AMENITY_ICON_CHOICES = [
 /* ---------- In-memory demo state (mirrors DEMO_* in main.js) ---------- */
 let state = {
   gallery: [
-    { id: 'g1', image_path: null, placeholder: 'المسبح الخاص' },
-    { id: 'g2', image_path: null, placeholder: 'الجلسات الخارجية' },
-    { id: 'g3', image_path: null, placeholder: 'غرف النوم' },
+    { id: 'g1', image_path: null, alt_text: 'المسبح الخاص' },
+    { id: 'g2', image_path: null, alt_text: 'الجلسات الخارجية' },
+    { id: 'g3', image_path: null, alt_text: 'غرف النوم' },
   ],
   features: [
     { id: 'f1', icon: 'amenityPool', title: 'مسبح خاص' },
@@ -121,28 +121,33 @@ async function loadRealDataFromSupabase() {
     // تحميل الباقات
     const { data: packagesData } = await supabaseClient.from('packages').select('*').order('sort_order', { ascending: true });
     if (packagesData) {
-      state.packages = packagesData.map((p, idx) => ({
+      state.packages = packagesData.map(p => ({
         ...p,
-        id: p.key, // استخدم key كـ id محلي للتوافق مع الكود الحالي
+        id: p.key
       }));
     }
 
     // تحميل المميزات
     const { data: featuresData } = await supabaseClient.from('features').select('*').order('sort_order', { ascending: true });
     if (featuresData) {
-      state.features = featuresData.map((f, idx) => ({
-        ...f,
-        id: f.id || `f${idx}`,
-      }));
+      state.features = featuresData;
     }
 
     // تحميل المعرض
     const { data: galleryData } = await supabaseClient.from('gallery').select('*').order('sort_order', { ascending: true });
     if (galleryData) {
-      state.gallery = galleryData.map((g, idx) => ({
-        ...g,
-        id: g.id || `g${idx}`,
-      }));
+      state.gallery = galleryData.map(img => {
+        // إذا كان المسار يبدأ بـ assets/ فهو محلي، وإلا فهو رابط خارجي (Supabase)
+        let finalPath = img.image_path;
+        if (finalPath && !finalPath.startsWith('http') && !finalPath.startsWith('data:')) {
+           // التأكد من عدم تكرار النقاط
+           if (!finalPath.startsWith('../')) finalPath = '../' + finalPath;
+        }
+        return {
+          ...img,
+          image_path: finalPath
+        };
+      });
     }
 
     console.log('✅ تم تحميل البيانات الحقيقية من Supabase بنجاح');
@@ -226,7 +231,7 @@ async function renderGalleryAdmin() {
         ${g.image_path ? `<img src="${g.image_path}">` : `<div class="media-placeholder">${icon('image', 40)}</div>`}
       </div>
       <div class="admin-card-body">
-        <div class="admin-card-title">${g.placeholder || 'صورة المعرض'}</div>
+        <div class="admin-card-title">${g.alt_text || 'صورة المعرض'}</div>
         <button class="btn-action" data-upload="${g.id}">${icon('edit', 14)} تغيير الصورة</button>
       </div>
     </div>
@@ -240,12 +245,79 @@ async function renderGalleryAdmin() {
   if (addBtn) addBtn.onclick = () => uploadGalleryImage(null);
 }
 
+async function renderGalleryAdmin() {
+  if (!galleryGrid) return;
+  galleryGrid.innerHTML = state.gallery.map(g => {
+    const imgSrc = g.image_path || '';
+
+    return `
+      <div class="admin-card" data-id="${g.id}">
+        <div class="admin-card-media">
+          ${imgSrc ? `<img src="${imgSrc}">` : `<div class="media-placeholder">${icon('image', 40)}</div>`}
+        </div>
+        <div class="admin-card-body">
+          <div class="admin-card-title">${g.alt_text || 'صورة المعرض'}</div>
+          <div class="admin-card-actions">
+            <button class="btn-action" data-upload="${g.id}">${icon('edit', 14)} تغيير</button>
+            <button class="btn-action btn-danger" data-delete-gallery="${g.id}">${icon('trash', 14)}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  galleryGrid.querySelectorAll('[data-upload]').forEach(btn => {
+    btn.addEventListener('click', () => uploadGalleryImage(btn.dataset.upload));
+  });
+
+  galleryGrid.querySelectorAll('[data-delete-gallery]').forEach(btn => {
+    btn.addEventListener('click', () => deleteGalleryItem(btn.dataset.deleteGallery));
+  });
+
+  const addBtn = document.getElementById('addImageBtn');
+  if (addBtn) addBtn.onclick = () => uploadGalleryImage(null);
+}
+
+async function deleteGalleryItem(id) {
+  if (!confirm('هل أنت متأكد من حذف هذه الصورة؟')) return;
+  if (!DEMO_MODE) {
+    const { error } = await supabaseClient.from('gallery').delete().eq('id', id);
+    if (error) {
+      alert('خطأ في الحذف: ' + error.message);
+      return;
+    }
+  }
+  state.gallery = state.gallery.filter(g => g.id != id);
+  renderGalleryAdmin();
+}
+
+async function convertToWebP(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", { type: 'image/webp' }));
+        }, 'image/webp', 0.8); // الجودة 80%
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function uploadGalleryImage(galleryId) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
   input.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
+    let file = e.target.files[0];
     if (!file) return;
 
     if (DEMO_MODE) {
@@ -253,40 +325,60 @@ async function uploadGalleryImage(galleryId) {
       return;
     }
 
-    const fileName = `${Date.now()}-${file.name}`;
-    const { error: uploadError } = await supabaseClient.storage.from('gallery').upload(fileName, file);
-    if (uploadError) {
-      alert('خطأ في الرفع: ' + uploadError.message);
-      return;
+    // تحويل تلقائي إلى WebP إذا كانت صورة
+    if (file.type.startsWith('image/')) {
+      console.log('Converting to WebP...');
+      file = await convertToWebP(file);
     }
 
-    const publicUrl = supabaseClient.storage.from('gallery').getPublicUrl(fileName).data.publicUrl;
+    // تنظيف اسم الملف
+    const cleanFileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
     
-    if (galleryId) {
-      // تحديث صورة موجودة
-      const item = state.gallery.find(g => g.id === galleryId);
-      if (item) {
-        item.image_path = publicUrl;
-        await supabaseClient.from('gallery').update({ image_path: publicUrl }).eq('id', galleryId);
-      }
-    } else {
-      // إضافة صورة جديدة
-      const { data, error: insertError } = await supabaseClient.from('gallery').insert({
-        image_path: publicUrl,
-        placeholder: 'صورة جديدة',
-        sort_order: state.gallery.length
-      }).select();
-      
-      if (!insertError && data) {
-        state.gallery.push({
-          ...data[0],
-          id: data[0].id
+    try {
+      // الرفع إلى Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabaseClient.storage
+        .from('gallery')
+        .upload(cleanFileName, file, {
+          cacheControl: '3600',
+          upsert: false
         });
-      }
-    }
 
-    await renderGalleryAdmin();
-    alert('تم رفع الصورة بنجاح');
+      if (uploadError) {
+        throw new Error(`Storage Error: ${uploadError.message}. تأكد من وجود Bucket باسم 'gallery' وأنه Public.`);
+      }
+
+      // الحصول على الرابط العام
+      const { data: urlData } = supabaseClient.storage.from('gallery').getPublicUrl(cleanFileName);
+      const publicUrl = urlData.publicUrl;
+      
+      if (galleryId) {
+        // تحديث صورة موجودة في جدول gallery
+        const { error: updateError } = await supabaseClient.from('gallery')
+          .update({ image_path: publicUrl })
+          .eq('id', galleryId);
+        
+        if (updateError) throw updateError;
+        
+        const item = state.gallery.find(g => g.id == galleryId);
+        if (item) item.image_path = publicUrl;
+      } else {
+        // إضافة سجل جديد في جدول gallery
+        const { data: insertData, error: insertError } = await supabaseClient.from('gallery').insert({
+          image_path: publicUrl,
+          alt_text: 'صورة جديدة',
+          sort_order: state.gallery.length
+        }).select();
+        
+        if (insertError) throw insertError;
+        if (insertData) state.gallery.push(insertData[0]);
+      }
+
+      await renderGalleryAdmin();
+      alert('تم الرفع والحفظ بنجاح');
+    } catch (err) {
+      alert('فشل العملية: ' + err.message);
+      console.error(err);
+    }
   });
   input.click();
 }
@@ -305,7 +397,10 @@ async function renderFeaturesAdmin() {
         <span class="li-icon">${icon(f.icon || 'gift', 18)}</span>
         <div class="li-title">${f.title}</div>
       </div>
-      <button class="btn-action" data-pick="${f.id}">${icon('edit', 14)} تغيير الأيقونة</button>
+      <div class="li-actions">
+        <button class="btn-action" data-pick="${f.id}">${icon('edit', 14)}</button>
+        <button class="btn-action btn-danger" data-delete-feature="${f.id}">${icon('trash', 14)}</button>
+      </div>
     </div>
   `).join('');
 
@@ -313,8 +408,49 @@ async function renderFeaturesAdmin() {
     btn.addEventListener('click', () => openIconPicker(btn.dataset.pick));
   });
 
+  featuresList.querySelectorAll('[data-delete-feature]').forEach(btn => {
+    btn.addEventListener('click', () => deleteFeature(btn.dataset.deleteFeature));
+  });
+
   const addBtn = document.getElementById('addFeatureBtn');
-  if (addBtn) addBtn.onclick = () => alert('إضافة ميزة جديدة متاحة في النسخة الكاملة');
+  if (addBtn) addBtn.onclick = () => addNewFeature();
+}
+
+async function addNewFeature() {
+  const title = prompt('أدخل اسم الميزة الجديدة:');
+  if (!title) return;
+  
+  const newFeature = {
+    title,
+    icon: 'sparkles',
+    sort_order: state.features.length
+  };
+
+  if (!DEMO_MODE) {
+    const { data, error } = await supabaseClient.from('features').insert(newFeature).select();
+    if (!error && data) {
+      state.features.push(data[0]);
+    } else {
+      alert('خطأ في الإضافة: ' + (error?.message || 'فشل الاتصال'));
+    }
+  } else {
+    state.features.push({ ...newFeature, id: Date.now() });
+  }
+  renderFeaturesAdmin();
+}
+
+async function deleteFeature(id) {
+  if (!confirm('هل أنت متأكد من حذف هذه الميزة؟')) return;
+  
+  if (!DEMO_MODE) {
+    const { error } = await supabaseClient.from('features').delete().eq('id', id);
+    if (error) {
+      alert('خطأ في الحذف: ' + error.message);
+      return;
+    }
+  }
+  state.features = state.features.filter(f => f.id != id);
+  renderFeaturesAdmin();
 }
 
 function buildIconPicker() {
