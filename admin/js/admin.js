@@ -16,6 +16,11 @@ const DEMO_MODE = !isSupabaseReady();
 /* Package icon mapping (kept in sync with js/main.js) */
 const PACKAGE_ICON_MAP = { morning: 'sun', evening: 'sunset', full_day: 'home', overnight: 'moon' };
 
+const AMENITY_ICON_CHOICES = [
+  'amenityPool', 'amenityKids', 'amenityCourt', 'amenityBBQ', 
+  'amenityWifi', 'amenityBed', 'amenityRelax', 'sparkles', 'gift', 'coffee'
+];
+
 /* ---------- In-memory demo state (mirrors DEMO_* in main.js) ---------- */
 let state = {
   gallery: [
@@ -103,6 +108,10 @@ async function showDashboard() {
     await loadRealDataFromSupabase();
   }
   
+  // ضبط الشهر الحالي قبل البدء
+  calendarViewYear = new Date().getFullYear();
+  calendarViewMonth = new Date().getMonth();
+  
   initDashboard();
 }
 
@@ -158,73 +167,77 @@ async function initDashboard() {
    SETTINGS ADMIN
    ========================================================= */
 async function renderSettingsAdmin() {
-  const sec = document.getElementById('sec-settings');
-  if (!sec) return;
+  const settings = await fetchSiteSettings() || {
+    whatsapp_number: '96890000000',
+    instagram_url: '',
+    map_embed_url: '',
+    location_name: 'أمازون شاليه'
+  };
 
-  sec.innerHTML = `
-    <div class="admin-section-head">
-      <h3>إعدادات الموقع</h3>
-    </div>
-    <div class="admin-form">
-      <label>رقم الواتساب
-        <input type="tel" id="settingsWhatsapp" placeholder="966XXXXXXXXX">
-      </label>
-      <label>رابط انستقرام
-        <input type="url" id="settingsInstagram" placeholder="https://instagram.com/...">
-      </label>
-      <label>رابط الخريطة (Embed)
-        <input type="url" id="settingsMapEmbed" placeholder="https://maps.google.com/...">
-      </label>
-      <label>اسم الموقع
-        <input type="text" id="settingsLocationName" placeholder="جبل الأخضر، عمان">
-      </label>
-      <button class="btn btn-primary" id="saveSettingsBtn">حفظ الإعدادات</button>
-    </div>
-  `;
+  document.getElementById('setWhatsapp').value = settings.whatsapp_number || '';
+  document.getElementById('setInstagram').value = settings.instagram_url || '';
+  document.getElementById('locMapUrl').value = settings.map_embed_url || '';
+  document.getElementById('locName').value = settings.location_name || '';
+  if (document.getElementById('locDesc')) document.getElementById('locDesc').value = settings.location_description || '';
 
-  document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
-    const settings = {
-      whatsapp_number: document.getElementById('settingsWhatsapp').value,
-      instagram_url: document.getElementById('settingsInstagram').value,
-      map_embed_url: document.getElementById('settingsMapEmbed').value,
-      location_name: document.getElementById('settingsLocationName').value,
+  const saveBtn = document.getElementById('saveSettingsBtn');
+  const saveLocBtn = document.getElementById('saveLocationBtn');
+  
+  const handleSave = async () => {
+    const updated = {
+      whatsapp_number: document.getElementById('setWhatsapp').value,
+      instagram_url: document.getElementById('setInstagram').value,
+      map_embed_url: document.getElementById('locMapUrl').value,
+      location_name: document.getElementById('locName').value,
+      location_description: document.getElementById('locDesc')?.value || ''
     };
 
     if (!DEMO_MODE) {
-      const { error } = await supabaseClient.from('settings').update(settings).eq('id', 1);
+      const { error } = await supabaseClient.from('settings').update(updated).eq('id', 1);
       if (error) alert('خطأ في الحفظ: ' + error.message);
-      else alert('تم حفظ الإعدادات بنجاح');
+      else {
+        const confirm = document.getElementById('saveConfirm');
+        if (confirm) {
+          confirm.textContent = '✅ تم الحفظ بنجاح';
+          setTimeout(() => confirm.textContent = '', 3000);
+        } else {
+          alert('تم الحفظ بنجاح');
+        }
+      }
     } else {
-      alert('أنت في وضع العرض التجريبي. قم بتفعيل Supabase لحفظ البيانات.');
+      alert('وضع العرض التجريبي: لا يمكن الحفظ.');
     }
-  });
+  };
+
+  if (saveBtn) saveBtn.onclick = handleSave;
+  if (saveLocBtn) saveLocBtn.onclick = handleSave;
 }
 
 /* =========================================================
    GALLERY ADMIN
    ========================================================= */
-const galleryList = document.getElementById('galleryAdminList');
+const galleryGrid = document.getElementById('galleryAdminGrid');
 
 async function renderGalleryAdmin() {
-  if (!galleryList) return;
-  galleryList.innerHTML = state.gallery.map(g => `
-    <div class="admin-list-item" data-id="${g.id}">
-      <div class="li-left">
-        <div class="gallery-thumb" style="background: #ddd; width: 60px; height: 60px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999;">
-          ${g.image_path ? `<img src="${g.image_path}" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">` : '📷'}
-        </div>
-        <div>
-          <div class="li-title">${g.placeholder || 'صورة'}</div>
-          <div class="li-sub" style="font-size:0.85rem; color:#999;">${g.image_path ? 'محمّل' : 'لم يتم الرفع بعد'}</div>
-        </div>
+  if (!galleryGrid) return;
+  galleryGrid.innerHTML = state.gallery.map(g => `
+    <div class="admin-card" data-id="${g.id}">
+      <div class="admin-card-media">
+        ${g.image_path ? `<img src="${g.image_path}">` : `<div class="media-placeholder">${icon('image', 40)}</div>`}
       </div>
-      <button class="btn btn-small" data-upload="${g.id}">رفع صورة</button>
+      <div class="admin-card-body">
+        <div class="admin-card-title">${g.placeholder || 'صورة المعرض'}</div>
+        <button class="btn-action" data-upload="${g.id}">${icon('edit', 14)} تغيير الصورة</button>
+      </div>
     </div>
   `).join('');
 
-  galleryList.querySelectorAll('[data-upload]').forEach(btn => {
+  galleryGrid.querySelectorAll('[data-upload]').forEach(btn => {
     btn.addEventListener('click', () => uploadGalleryImage(btn.dataset.upload));
   });
+
+  const addBtn = document.getElementById('addImageBtn');
+  if (addBtn) addBtn.onclick = () => uploadGalleryImage(null);
 }
 
 async function uploadGalleryImage(galleryId) {
@@ -262,6 +275,26 @@ async function uploadGalleryImage(galleryId) {
    ========================================================= */
 const featuresList = document.getElementById('featuresAdminList');
 let pickingFeatureId = null;
+
+async function renderFeaturesAdmin() {
+  if (!featuresList) return;
+  featuresList.innerHTML = state.features.map(f => `
+    <div class="admin-list-item" data-id="${f.id}">
+      <div class="li-left">
+        <span class="li-icon">${icon(f.icon || 'gift', 18)}</span>
+        <div class="li-title">${f.title}</div>
+      </div>
+      <button class="btn-action" data-pick="${f.id}">${icon('edit', 14)} تغيير الأيقونة</button>
+    </div>
+  `).join('');
+
+  featuresList.querySelectorAll('[data-pick]').forEach(btn => {
+    btn.addEventListener('click', () => openIconPicker(btn.dataset.pick));
+  });
+
+  const addBtn = document.getElementById('addFeatureBtn');
+  if (addBtn) addBtn.onclick = () => alert('إضافة ميزة جديدة متاحة في النسخة الكاملة');
+}
 
 function buildIconPicker() {
   const overlay = document.createElement('div');
@@ -303,22 +336,7 @@ async function selectFeatureIcon(iconKey) {
   await renderFeaturesAdmin();
 }
 
-async function renderFeaturesAdmin() {
-  if (!featuresList) return;
-  featuresList.innerHTML = state.features.map(f => `
-    <div class="admin-list-item" data-id="${f.id}">
-      <div class="li-left">
-        <span class="li-icon">${icon(f.icon || 'gift', 18)}</span>
-        <div class="li-title">${f.title}</div>
-      </div>
-      <button class="btn btn-small" data-pick="${f.id}">تغيير الأيقونة</button>
-    </div>
-  `).join('');
 
-  featuresList.querySelectorAll('[data-pick]').forEach(btn => {
-    btn.addEventListener('click', () => openIconPicker(btn.dataset.pick));
-  });
-}
 
 /* =========================================================
    PACKAGES ADMIN (price editing)
@@ -338,15 +356,17 @@ async function renderPackagesAdmin() {
         </div>
       </div>
       <div class="package-time-fields">
-        <label>وقت البداية
+        <label>البداية
           <input type="time" data-start="${p.key}" value="${p.start_time || ''}">
         </label>
-        <span class="package-time-arrow">←</span>
-        <label>وقت النهاية
+        <label>النهاية
           <input type="time" data-end="${p.key}" value="${p.end_time || ''}">
         </label>
       </div>
-      <span class="li-price" data-price="${p.key}" title="اضغط للتعديل" style="cursor:pointer">${p.price} ر.ع</span>
+      <div class="li-right">
+        <span class="li-price" data-price="${p.key}" title="اضغط للتعديل">${p.price} ر.ع</span>
+        <button class="btn-action" data-price="${p.key}">${icon('edit', 14)}</button>
+      </div>
     </div>
   `).join('');
 
@@ -394,84 +414,163 @@ let calendarViewYear = new Date().getFullYear();
 let calendarViewMonth = new Date().getMonth();
 
 async function renderCalendarAdmin() {
-  if (!calendarContainer) return;
+  const titleEl = document.getElementById('adminCalendarTitle');
+  const gridEl = document.getElementById('adminCalendarGrid');
+  const dowRow = document.getElementById('adminDowRow');
+  if (!gridEl) return;
+
+  // تحميل التوفر للشهر الحالي
+  if (!DEMO_MODE) {
+    const data = await fetchAvailability(calendarViewYear, calendarViewMonth);
+    if (data) {
+      data.forEach(row => {
+        state.availability[row.date] = {
+          morning: row.morning,
+          evening: row.evening,
+          full_day: row.full_day,
+          overnight: row.overnight
+        };
+      });
+    }
+  }
 
   const monthLabel = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][calendarViewMonth];
+  if (titleEl) titleEl.textContent = `${monthLabel} ${calendarViewYear}`;
+
+  if (dowRow && !dowRow.innerHTML) {
+    const days = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+    dowRow.innerHTML = days.map(d => `<div>${d}</div>`).join('');
+  }
+
   const firstDay = new Date(calendarViewYear, calendarViewMonth, 1);
   const lastDay = new Date(calendarViewYear, calendarViewMonth + 1, 0);
   const daysInMonth = lastDay.getDate();
-  const startingDayOfWeek = firstDay.getDay();
+  const startOffset = firstDay.getDay();
 
-  let html = `
-    <div class="admin-section-head">
-      <h3>التقويم والتوفر</h3>
-    </div>
-    <div class="calendar-nav">
-      <button id="calendarPrevMonth">← الشهر السابق</button>
-      <span>${monthLabel} ${calendarViewYear}</span>
-      <button id="calendarNextMonth">الشهر التالي →</button>
-    </div>
-    <div class="admin-calendar-grid">
-  `;
-
-  const dayLabels = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
-  dayLabels.forEach(day => {
-    html += `<div class="cal-day-header">${day}</div>`;
-  });
-
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    html += `<div class="cal-empty"></div>`;
+  gridEl.innerHTML = '';
+  for (let i = 0; i < startOffset; i++) {
+    gridEl.appendChild(document.createElement('div'));
   }
 
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateStr = `${calendarViewYear}-${String(calendarViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calendarViewYear}-${String(calendarViewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const avail = state.availability[dateStr] || { morning: true, evening: true, full_day: true, overnight: true };
-    html += `
-      <div class="cal-day" data-date="${dateStr}">
-        <div class="cal-day-num">${day}</div>
-        <div class="cal-day-status">
-          <label><input type="checkbox" data-slot="morning" ${avail.morning ? 'checked' : ''}> ص</label>
-          <label><input type="checkbox" data-slot="evening" ${avail.evening ? 'checked' : ''}> م</label>
-          <label><input type="checkbox" data-slot="full_day" ${avail.full_day ? 'checked' : ''}> ك</label>
-          <label><input type="checkbox" data-slot="overnight" ${avail.overnight ? 'checked' : ''}> ل</label>
-        </div>
+    
+    const isFullyBooked = !avail.morning && !avail.evening && !avail.full_day && !avail.overnight;
+    const isPartial = !isFullyBooked && (!avail.morning || !avail.evening || !avail.full_day || !avail.overnight);
+    const statusClass = isFullyBooked ? 'booked' : (isPartial ? 'partial' : 'available');
+
+    const dayCell = document.createElement('div');
+    dayCell.className = `admin-day-cell ${statusClass}`;
+    dayCell.innerHTML = `
+      <div class="day-num">${d}</div>
+      <div class="day-slots">
+        <span class="slot-dot ${avail.morning?'':'off'}" title="صباحي"></span>
+        <span class="slot-dot ${avail.evening?'':'off'}" title="مسائي"></span>
+        <span class="slot-dot ${avail.full_day?'':'off'}" title="يوم كامل"></span>
+        <span class="slot-dot ${avail.overnight?'':'off'}" title="مبيت"></span>
       </div>
     `;
+    dayCell.onclick = () => openDayPopover(dateStr, avail);
+    gridEl.appendChild(dayCell);
   }
 
-  html += `</div>`;
-  calendarContainer.innerHTML = html;
-
-  document.getElementById('calendarPrevMonth').addEventListener('click', () => {
+  document.getElementById('adminPrevMonth').onclick = () => {
     calendarViewMonth--;
     if (calendarViewMonth < 0) { calendarViewMonth = 11; calendarViewYear--; }
     renderCalendarAdmin();
-  });
-
-  document.getElementById('calendarNextMonth').addEventListener('click', () => {
+  };
+  document.getElementById('adminNextMonth').onclick = () => {
     calendarViewMonth++;
     if (calendarViewMonth > 11) { calendarViewMonth = 0; calendarViewYear++; }
     renderCalendarAdmin();
-  });
+  };
+}
 
-  document.querySelectorAll('.cal-day input[type="checkbox"]').forEach(checkbox => {
-    checkbox.addEventListener('change', async (e) => {
-      const dayEl = e.target.closest('.cal-day');
-      const dateStr = dayEl.dataset.date;
+function openDayPopover(dateStr, avail) {
+  let popover = document.getElementById('dayPopover');
+  if (!popover) {
+    popover = document.createElement('div');
+    popover.id = 'dayPopover';
+    popover.className = 'day-popover';
+    document.body.appendChild(popover);
+  }
+
+  popover.innerHTML = `
+    <div class="day-popover-card">
+      <h4>تعديل التوفر: ${dateStr}</h4>
+      <div class="popover-slots">
+        ${state.packages.map(p => `
+          <label class="slot-toggle">
+            <input type="checkbox" data-date="${dateStr}" data-slot="${p.key}" ${avail[p.key] ? 'checked' : ''}>
+            <span>${p.name}</span>
+          </label>
+        `).join('')}
+      </div>
+      <div class="day-popover-actions">
+        <button class="btn-save-pop" id="closePopover">إغلاق</button>
+      </div>
+    </div>
+  `;
+  
+  popover.classList.add('open');
+  popover.onclick = (e) => { if(e.target === popover) popover.classList.remove('open'); };
+  document.getElementById('closePopover').onclick = () => popover.classList.remove('open');
+
+  popover.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.onchange = async (e) => {
       const slot = e.target.dataset.slot;
-      const isAvailable = e.target.checked;
+      const checked = e.target.checked;
+      
+      // تهيئة البيانات لليوم إذا لم تكن موجودة
+      state.availability[dateStr] = state.availability[dateStr] || { morning: true, evening: true, full_day: true, overnight: true };
+      
+      // تطبيق منطق التداخل التلقائي
+      if (!checked) { // إذا تم "حجز" الفترة (إلغاء التوفر)
+        if (slot === 'full_day') {
+          // حجز اليوم الكامل يغلق كل شيء في نفس اليوم
+          state.availability[dateStr].morning = false;
+          state.availability[dateStr].evening = false;
+          state.availability[dateStr].full_day = false;
+          state.availability[dateStr].overnight = false;
+        } else if (slot === 'overnight') {
+          // حجز المبيت يغلق اليوم الكامل والمسائي (لأن المبيت يبدأ مساءً)
+          state.availability[dateStr].overnight = false;
+          state.availability[dateStr].full_day = false;
+          state.availability[dateStr].evening = false;
+        } else if (slot === 'morning' || slot === 'evening') {
+          // حجز الصباحي أو المسائي يغلق اليوم الكامل والمبيت
+          state.availability[dateStr][slot] = false;
+          state.availability[dateStr].full_day = false;
+          state.availability[dateStr].overnight = false;
+        }
+      } else { // إذا تم جعل الفترة "متاحة"
+        state.availability[dateStr][slot] = true;
+        // إذا فتحنا اليوم الكامل، نفتح كل شيء معه
+        if (slot === 'full_day') {
+          state.availability[dateStr].morning = true;
+          state.availability[dateStr].evening = true;
+          state.availability[dateStr].overnight = true;
+        }
+      }
 
-      state.availability[dateStr] = state.availability[dateStr] || {};
-      state.availability[dateStr][slot] = isAvailable;
+      // تحديث واجهة الـ Popover لتعكس التغييرات التلقائية
+      popover.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        input.checked = state.availability[dateStr][input.dataset.slot];
+      });
 
+      // حفظ التغييرات في قاعدة البيانات
       if (!DEMO_MODE) {
         const { error } = await supabaseClient.from('availability').upsert({
           date: dateStr,
-          [slot]: isAvailable,
+          ...state.availability[dateStr]
         }, { onConflict: 'date' });
-        if (error) console.warn('خطأ في حفظ التوفر:', error);
+        
+        if (error) console.error('Error updating availability:', error);
       }
-    });
+      
+      renderCalendarAdmin();
+    };
   });
 }
 
