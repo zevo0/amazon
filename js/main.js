@@ -175,12 +175,10 @@ if (typeof fetchGalleryImages === 'function') {
     if (images && images.length) {
       realGalleryData = images.map(img => {
         let finalSrc = img.image_path;
-        
-        // إذا كان الرابط يبدأ بـ ../assets/ نقوم بتصحيحه للصفحة الرئيسية
-        if (finalSrc && finalSrc.startsWith('../assets/')) {
-          finalSrc = finalSrc.replace('../assets/', 'assets/');
+        // الصفحة الرئيسية تحتاج المسار بدون ../ إذا كان محلياً
+        if (finalSrc && !finalSrc.startsWith('http') && !finalSrc.startsWith('data:')) {
+           finalSrc = finalSrc.replace(/^\.\.\//, ''); 
         }
-        
         return {
           src: finalSrc,
           alt: img.alt_text || CHALET_NAME,

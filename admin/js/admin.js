@@ -137,16 +137,12 @@ async function loadRealDataFromSupabase() {
     const { data: galleryData } = await supabaseClient.from('gallery').select('*').order('sort_order', { ascending: true });
     if (galleryData) {
       state.gallery = galleryData.map(img => {
-        // إذا كان المسار يبدأ بـ assets/ فهو محلي، وإلا فهو رابط خارجي (Supabase)
         let finalPath = img.image_path;
-        if (finalPath && !finalPath.startsWith('http') && !finalPath.startsWith('data:')) {
-           // التأكد من عدم تكرار النقاط
-           if (!finalPath.startsWith('../')) finalPath = '../' + finalPath;
+        // لوحة التحكم تحتاج ../ للوصول لـ assets إذا كان المسار محلياً
+        if (finalPath && !finalPath.startsWith('http') && !finalPath.startsWith('data:') && finalPath.startsWith('assets/')) {
+           finalPath = '../' + finalPath;
         }
-        return {
-          ...img,
-          image_path: finalPath
-        };
+        return { ...img, image_path: finalPath };
       });
     }
 
@@ -249,11 +245,10 @@ async function renderGalleryAdmin() {
   if (!galleryGrid) return;
   galleryGrid.innerHTML = state.gallery.map(g => {
     const imgSrc = g.image_path || '';
-
     return `
       <div class="admin-card" data-id="${g.id}">
         <div class="admin-card-media">
-          ${imgSrc ? `<img src="${imgSrc}">` : `<div class="media-placeholder">${icon('image', 40)}</div>`}
+          ${imgSrc ? `<img src="${imgSrc}" style="width:100%; height:100%; object-fit:cover;">` : `<div class="media-placeholder">${icon('image', 40)}</div>`}
         </div>
         <div class="admin-card-body">
           <div class="admin-card-title">${g.alt_text || 'صورة المعرض'}</div>
