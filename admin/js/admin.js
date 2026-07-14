@@ -261,8 +261,29 @@ async function uploadGalleryImage(galleryId) {
     }
 
     const publicUrl = supabaseClient.storage.from('gallery').getPublicUrl(fileName).data.publicUrl;
-    const item = state.gallery.find(g => g.id === galleryId);
-    if (item) item.image_path = publicUrl;
+    
+    if (galleryId) {
+      // تحديث صورة موجودة
+      const item = state.gallery.find(g => g.id === galleryId);
+      if (item) {
+        item.image_path = publicUrl;
+        await supabaseClient.from('gallery').update({ image_path: publicUrl }).eq('id', galleryId);
+      }
+    } else {
+      // إضافة صورة جديدة
+      const { data, error: insertError } = await supabaseClient.from('gallery').insert({
+        image_path: publicUrl,
+        placeholder: 'صورة جديدة',
+        sort_order: state.gallery.length
+      }).select();
+      
+      if (!insertError && data) {
+        state.gallery.push({
+          ...data[0],
+          id: data[0].id
+        });
+      }
+    }
 
     await renderGalleryAdmin();
     alert('تم رفع الصورة بنجاح');
@@ -534,9 +555,10 @@ function openDayPopover(dateStr, avail) {
           state.availability[dateStr].full_day = false;
           state.availability[dateStr].overnight = false;
         } else if (slot === 'overnight') {
-          // حجز المبيت يغلق اليوم الكامل والمسائي (لأن المبيت يبدأ مساءً)
+          // حجز المبيت يغلق اليوم بالكامل (صباحي ومسائي ويوم كامل)
           state.availability[dateStr].overnight = false;
           state.availability[dateStr].full_day = false;
+          state.availability[dateStr].morning = false;
           state.availability[dateStr].evening = false;
         } else if (slot === 'morning' || slot === 'evening') {
           // حجز الصباحي أو المسائي يغلق اليوم الكامل والمبيت
