@@ -3,13 +3,13 @@
    Mobile-First Optimized with Enhanced Security
    ========================================================= */
 
-const SUPABASE_URL = 'https://irnoymfihzlctxqfuhue.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlybm95bWZpaHpsY3R4cWZ1aHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5NTg1NDMsImV4cCI6MjA5OTUzNDU0M30.X0GtMJh6fa_YmeCwyFlf1b5ep4fDHmXSag9oZFFf1n0';
+const SUPABASE_URL = 'https://ghnzdcxrrqoykswzmxuj.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_WQlEp2ETMNsSQFbuI8DXVg_xb45MR7L';
 
 let supabaseClient = null;
 
 try {
-  if (window.supabase && !SUPABASE_URL.includes('YOUR-PROJECT')) {
+  if (window.supabase) {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
 } catch (e) {
@@ -17,13 +17,6 @@ try {
 }
 
 const isSupabaseReady = () => !!supabaseClient;
-
-/* ---- Storage: public image URL helper ---- */
-function getPublicImageUrl(bucket, path) {
-  if (!isSupabaseReady()) return null;
-  const { data } = supabaseClient.storage.from(bucket).getPublicUrl(path);
-  return data?.publicUrl || null;
-}
 
 /* ---- Settings (hero image, phone number, map coords, etc.) ---- */
 async function fetchSiteSettings() {
@@ -123,15 +116,4 @@ async function fetchAvailability(year, month) {
   }
 }
 
-/*
-  ---------------------------------------------------------
-  SCHEMA & SECURITY: see FIX_RLS_SAFE.sql for the current,
-  correct RLS policies actually applied to this project.
-
-  Tables in use: settings, gallery, features, packages, availability.
-  Write access: any authenticated user (auth.role() = 'authenticated').
-  Public read: enabled on all tables.
-
-  Do NOT use any older schema/policy snippet found elsewhere in this
-  project's history — FIX_RLS_SAFE.sql is the single source of truth.
-*/
+/* Database schema + RLS policies: see supabase/schema.sql */

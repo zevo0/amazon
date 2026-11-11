@@ -14,7 +14,7 @@
 const DEMO_MODE = !isSupabaseReady();
 
 /* Package icon mapping (kept in sync with js/main.js) */
-const PACKAGE_ICON_MAP = { morning: 'sun', evening: 'sunset', full_day: 'home', overnight: 'moon' };
+const PACKAGE_ICON_MAP = { morning: 'sun', evening: 'moon', full_day: 'fullDay', overnight: 'home' };
 
 const AMENITY_ICON_CHOICES = [
   'amenityPool', 'amenityKids', 'amenityCourt', 'amenityBBQ', 
@@ -157,6 +157,8 @@ async function loadRealDataFromSupabase() {
    ========================================================= */
 async function initDashboard() {
   renderStaticIcons();
+  await renderBookingsAdmin();
+  displayBookingsStats();
   await renderSettingsAdmin();
   await renderGalleryAdmin();
   await renderFeaturesAdmin();
@@ -516,7 +518,7 @@ async function renderPackagesAdmin() {
         </label>
       </div>
       <div class="li-right">
-        <span class="li-price" data-price="${p.key}" title="اضغط للتعديل">${p.price} ر.ع</span>
+        <span class="li-price" data-price="${p.key}" title="اضغط للتعديل">${p.price}&nbsp;${omr()}</span>
         <button class="btn-action" data-price="${p.key}">${icon('edit', 14)}</button>
       </div>
     </div>
@@ -561,7 +563,6 @@ async function editPackagePrice(key) {
 /* =========================================================
    CALENDAR ADMIN
    ========================================================= */
-const calendarContainer = document.getElementById('calendarAdminContainer');
 let calendarViewYear = new Date().getFullYear();
 let calendarViewMonth = new Date().getMonth();
 

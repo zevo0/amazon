@@ -1,62 +1,54 @@
 # أمازون شاليه | Amazon Chalet
 
-موقع فاخر بلغة عربية (RTL) لعرض وحجز شاليه واحد في عُمان، مبني بالكامل بـ **HTML/CSS/JavaScript خام** (بدون React أو Tailwind) مع لوحة تحكم كاملة، وجاهز للربط مع **Supabase**.
+موقع عربي (RTL) لعرض وحجز شاليه في عُمان — HTML/CSS/JavaScript خام (بدون build) + Supabase + لوحة تحكم. النشر على Cloudflare Pages.
 
-## البنية
+## هيكل المشروع
 
 ```
-amazon-chalet/
-├── index.html              الصفحة الرئيسية العامة
-├── css/style.css           تصميم الموقع
-├── js/main.js              تفاعل الموقع (القائمة، المعرض، التقويم، الحجز)
-├── js/supabase-client.js   إعداد Supabase + دوال جلب البيانات + مخطط قاعدة البيانات
-├── assets/                 الشعار وصورة الغلاف
-└── admin/                  لوحة التحكم (صفحة واحدة)
-    ├── index.html
-    ├── css/admin.css
-    └── js/admin.js
+├── index.html               الموقع العام
+├── css/style.css            تصميم الموقع
+├── js/
+│   ├── main.js              منطق الموقع (قائمة، معرض، تقويم، حجز واتساب)
+│   ├── supabase-client.js   الاتصال بـ Supabase + جلب البيانات
+│   ├── supabase-bookings.js إنشاء/إدارة الحجوزات وتحديث التوفر
+│   ├── icons.js             الأيقونات + رمز الريال العماني omr()
+│   ├── time-utils.js        تحويل الأوقات إلى صيغة عربية (٨ص - ١ظ)
+│   └── lib/supabase.js      مكتبة supabase-js (نسخة محلية)
+├── admin/                   لوحة التحكم (/admin) — صفحة واحدة
+│   ├── index.html
+│   ├── css/admin.css
+│   └── js/admin.js, admin-bookings.js
+├── assets/                  الصور (webp) + logo.png احتياطي + omr.svg
+├── functions/_middleware.js Cloudflare Function: og:image ديناميكي لمعاينة واتساب
+├── _routes.json             يحصر الـ Function على الصفحة الرئيسية
+├── supabase/schema.sql      الجداول + الصلاحيات + البيانات الابتدائية
+├── robots.txt, sitemap.xml
 ```
 
 ## التشغيل محليًا
 
-لا يحتاج المشروع أي بناء (build) — افتح `index.html` مباشرة، أو شغّل خادمًا بسيطًا:
-
 ```bash
-npx serve .
-# أو
-python3 -m http.server 8000
+npx serve .      # أو: python3 -m http.server 8000
 ```
 
-## ربط Supabase (لتفعيل الوضع الحقيقي)
+## Supabase
 
-حاليًا الموقع يعمل في **وضع تجريبي (Demo Mode)**: بيانات المميزات، الباقات، والتوفر معروضة من بيانات محلية داخل `main.js`/`admin.js` حتى تربط مشروعك الحقيقي.
+1. شغّل `supabase/schema.sql` كاملاً من SQL Editor (آمن لإعادة التشغيل، ما يحذف بيانات).
+2. أنشئ مستخدم الأدمن من Authentication ▸ Users — هو حساب الدخول لـ `/admin`.
+3. مفاتيح الاتصال في أول `js/supabase-client.js`.
 
-1. أنشئ مشروعًا في [supabase.com](https://supabase.com)
-2. من SQL Editor، شغّل الأوامر الموجودة في أسفل ملف `js/supabase-client.js` (تعليق `SUGGESTED SUPABASE SCHEMA`) لإنشاء الجداول:
-   - `settings`, `gallery`, `features`, `packages`, `availability`
-3. أنشئ Bucket باسم `gallery` في Storage (Public) لصور المعرض
-4. افتح `js/supabase-client.js` وعدّل:
-   ```js
-   const SUPABASE_URL = 'https://xxxxx.supabase.co';
-   const SUPABASE_ANON_KEY = 'eyJhbG....';
-   ```
-5. فعّل Supabase Auth (Email/Password) وأنشئ مستخدم أدمن واحد من لوحة Supabase — هذا هو حساب الدخول للوحة `/admin`
-6. عدّل رقم الواتساب في `js/main.js`:
-   ```js
-   const WHATSAPP_NUMBER = '96890000000';
-   ```
+الصلاحيات: القراءة عامة، الكتابة لأي مستخدم مسجّل دخول (الأدمن)، والزائر يقدر **يضيف** حجز فقط ولا يقرأ الحجوزات.
 
-بمجرد إضافة القيم الحقيقية، سيتحول الموقع تلقائيًا من الوضع التجريبي إلى الوضع الحي (Live)، ولوحة التحكم ستحفظ كل تعديل مباشرة في قاعدة البيانات.
+## الإعدادات داخل الكود
 
-## النشر (GitHub → Vercel)
+| ماذا | أين |
+|---|---|
+| رقم الواتساب، سعر نهاية الأسبوع (15 ر.ع)، العربون (40%)، حد الدفع الكامل (3 أيام) | أول `js/main.js` |
+| رابط الخريطة | قسم `#location` في `index.html` |
+| رابط الموقع (canonical / og:url) | `index.html` + `robots.txt` + `sitemap.xml` |
 
-1. ارفع المجلد إلى مستودع GitHub جديد
-2. من [vercel.com](https://vercel.com) اختر "Add New Project" واربط المستودع
-3. لا حاجة لأي إعدادات Build (Framework: **Other**، Output Directory: الجذر `.`)
-4. اضغط Deploy — الموقع سيكون متاحًا خلال دقيقة
+أوقات وأسعار الباقات تتعدل من لوحة التحكم، بدون تعديل كود.
 
-## ملاحظات
+## النشر (Cloudflare Pages)
 
-- صور معرض الصور حاليًا بها بلاطات (Placeholders) بعناوين — استبدلها بصور حقيقية من لوحة التحكم ▸ الصور بعد ربط Supabase Storage
-- خريطة Google Maps تستخدم حاليًا موقعًا تقريبيًا في جبل الأخضر — عدّل رابط الـ embed داخل `index.html` (قسم `#location`) بموقع الشاليه الفعلي
-- أوقات كل باقة (البداية/النهاية) قابلة للتعديل من لوحة التحكم ▸ الباقات، وتُعرض تلقائيًا بصيغة عربية (مثل ٨ص - ١ظ) في واجهة الحجز — لا حاجة لتعديل الكود
+اربط مستودع GitHub مع Cloudflare Pages (بدون أمر build، مجلد الإخراج `/`). الرفع اليدوي بالسحب والإفلات **لا** يشغّل مجلد `functions`، فتبقى معاينة واتساب على وسم `og:image` الثابت.

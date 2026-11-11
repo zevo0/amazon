@@ -1,6 +1,6 @@
 /* =========================================================
-   أمازون شاليه — Main site script
-   Instant Render + Async Data Loading
+   أمازون شاليه — Main site script (ENHANCED)
+   Instant Render + Async Data Loading + Booking Integration
    ========================================================= */
 
 /* ---------- Config ---------- */
@@ -41,6 +41,9 @@ const DEMO_PACKAGES = [
 ];
 
 const DEFAULT_AVAILABILITY = { morning: true, evening: true, full_day: true, overnight: true };
+
+/* Package icon mapping (kept in sync with admin/js/admin.js) */
+const PACKAGE_ICON_MAP = { morning: 'sun', evening: 'moon', full_day: 'fullDay', overnight: 'home' };
 
 /* =========================================================
    HEADER SCROLL
@@ -116,10 +119,8 @@ function renderAmenities(amenities = DEMO_AMENITIES) {
   `).join('');
 }
 
-// Render demo amenities IMMEDIATELY
 renderAmenities();
 
-// Update from Supabase in background (non-blocking)
 if (typeof fetchFeatures === 'function') {
   fetchFeatures().then(data => {
     if (data && data.length) renderAmenities(data);
@@ -153,7 +154,6 @@ function renderGallery(images = DEMO_GALLERY) {
   galleryInitialized = true;
 }
 
-// Lazy load gallery when needed
 let realGalleryData = null;
 
 const gallerySection = document.getElementById('gallery');
@@ -167,15 +167,11 @@ if (gallerySection) {
   galleryObserver.observe(gallerySection);
 }
 
-// Fetch real Supabase data independently of scroll timing — whichever
-// happens first (fetch resolving, or the user scrolling into view)
-// no longer causes the real data to be silently dropped.
 if (typeof fetchGalleryImages === 'function') {
   fetchGalleryImages().then(images => {
     if (images && images.length) {
       realGalleryData = images.map(img => {
         let finalSrc = img.image_path;
-        // الصفحة الرئيسية تحتاج المسار بدون ../ إذا كان محلياً
         if (finalSrc && !finalSrc.startsWith('http') && !finalSrc.startsWith('data:')) {
            finalSrc = finalSrc.replace(/^\.\.\//, ''); 
         }
@@ -320,14 +316,62 @@ function renderCalendar(avMap = {}) {
   calendarInitialized = true;
 }
 
-// Render demo calendar immediately
 renderCalendar();
 
-// Update from Supabase in background
 if (typeof fetchAvailability === 'function') {
   loadAvailabilityForMonth(viewYear, viewMonth).then(map => {
     renderCalendar(map);
   }).catch(() => {});
+}
+
+/* =========================================================
+   BOOKING PRICE (dynamic, from Admin Panel)
+   ========================================================= */
+function renderBookingPrice(packages = DEMO_PACKAGES) {
+  const priceEl = document.getElementById('bookingPrice');
+  if (!priceEl || !packages || !packages.length) return;
+  const minPrice = Math.min(...packages.map(p => p.price));
+  priceEl.innerHTML = `<span class="price-from">ابتداءً من</span>${minPrice}<span class="price-unit">${omr()}</span>`;
+}
+
+renderBookingPrice();
+
+if (typeof fetchPackages === 'function') {
+  fetchPackages().then(data => {
+    if (data && data.length) {
+      packagesData = data;
+      renderBookingPrice(data);
+    }
+  }).catch(() => {});
+}
+
+/* =========================================================
+   REALTIME SYNC — availability + package prices
+   Keeps the calendar and price display automatically in
+   sync when the admin changes data or another booking is
+   made, without altering any booking logic.
+   ========================================================= */
+if (typeof isSupabaseReady === 'function' && isSupabaseReady()) {
+  try {
+    supabaseClient
+      .channel('site-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'availability' }, () => {
+        loadAvailabilityForMonth(viewYear, viewMonth).then(map => renderCalendar(map)).catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'packages' }, () => {
+        if (typeof fetchPackages === 'function') {
+          fetchPackages().then(data => {
+            if (data && data.length) {
+              packagesData = data;
+              renderBookingPrice(data);
+            }
+          }).catch(() => {});
+        }
+      })
+      .subscribe();
+  } catch (e) {
+    console.warn('Realtime sync unavailable', e);
+  }
 }
 
 document.getElementById('prevMonth').addEventListener('click', () => {
@@ -413,8 +457,8 @@ async function openBookingModal(key) {
   dayCardStatus.innerHTML = `<i></i> ${dayStatus === 'partial' ? 'متاح جزئيًا' : 'متاح'}`;
 
   selectedIsWeekend = isWeekendDate(y, m - 1, d);
-  modalWeekendNote.textContent = selectedIsWeekend
-    ? `سعر عطلة نهاية الأسبوع: +${WEEKEND_SURCHARGE} ر.ع لكل الباقات`
+  modalWeekendNote.innerHTML = selectedIsWeekend
+    ? `سعر عطلة نهاية الأسبوع: +${WEEKEND_SURCHARGE}&nbsp;${omr()} لكل الباقات`
     : '';
   modalWeekendNote.classList.toggle('weekend', selectedIsWeekend);
 
@@ -430,13 +474,13 @@ async function openBookingModal(key) {
     const finalPrice = priceWithWeekend(pkg.price);
     return `<div class="package-item ${isAvailable ? 'selectable' : 'disabled'}" data-key="${pkg.key}">
       <div class="package-info">
-        <span class="package-icon">${icon(pkg.icon || 'sparkles', 20)}</span>
+        <span class="package-icon">${icon(PACKAGE_ICON_MAP[pkg.key] || pkg.icon || 'sparkles', 20)}</span>
         <div>
           <div class="package-name">${pkg.name}</div>
           <div class="package-time">${displayTimeRange(pkg)}${isAvailable ? '' : ' · غير متاح'}</div>
         </div>
       </div>
-      <div class="package-price">${finalPrice}<span class="price-unit">ر.ع</span></div>
+      <div class="package-price">${finalPrice}<span class="price-unit">${omr()}</span></div>
     </div>`;
   }).join('');
 
@@ -447,6 +491,8 @@ async function openBookingModal(key) {
   bookingSummary.classList.remove('show');
   depositNote.classList.remove('show');
   whatsappBtn.classList.remove('active');
+  const agreeCheckboxEl = document.getElementById('agreeCheckbox');
+  if (agreeCheckboxEl) agreeCheckboxEl.checked = false;
   setStep(2);
   modalOverlay.classList.add('open');
 }
@@ -462,7 +508,7 @@ function selectPackage(key) {
   bookingSummary.innerHTML = `
     <div><span class="sum-label">التاريخ</span><span class="sum-value">${formatArabicDate(selectedDateKey)}</span></div>
     <div><span class="sum-label">الباقة</span><span class="sum-value">${selectedPackage.name} (${displayTimeRange(selectedPackage)})</span></div>
-    <div class="sum-total"><span class="sum-label">الإجمالي</span><span class="sum-value">${finalPrice} ر.ع</span></div>
+    <div class="sum-total"><span class="sum-label">الإجمالي</span><span class="sum-value">${finalPrice}&nbsp;${omr()}</span></div>
   `;
   bookingSummary.classList.add('show');
 
@@ -477,22 +523,78 @@ function selectPackage(key) {
     </div>
     <div class="deposit-note-amount">
       <span class="label">${isFullPayment ? 'المبلغ المطلوب (دفع كامل)' : 'العربون المطلوب (٤٠٪)'}</span>
-      <span class="value">${requiredAmount} ر.ع</span>
+      <span class="value">${requiredAmount}&nbsp;${omr()}</span>
     </div>
   `;
   depositNote.classList.add('show');
 
-  whatsappBtn.classList.add('active');
+  const agreeCheckboxEl = document.getElementById('agreeCheckbox');
+  whatsappBtn.classList.toggle('active', !!(agreeCheckboxEl && agreeCheckboxEl.checked));
   setStep(3);
 }
 
-whatsappBtn.addEventListener('click', () => {
+document.getElementById('agreeCheckbox').addEventListener('change', (e) => {
+  whatsappBtn.classList.toggle('active', e.target.checked && !!selectedPackage);
+});
+
+document.getElementById('termsLink').addEventListener('click', () => {
+  document.getElementById('termsOverlay').classList.add('open');
+});
+function closeTermsModal() {
+  document.getElementById('termsOverlay').classList.remove('open');
+}
+document.getElementById('termsCloseBtn').addEventListener('click', closeTermsModal);
+document.getElementById('termsXBtn').addEventListener('click', closeTermsModal);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('termsOverlay').classList.contains('open')) closeTermsModal();
+});
+document.getElementById('termsOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'termsOverlay') e.currentTarget.classList.remove('open');
+});
+
+/* =========================================================
+   BOOKING CREATION & WHATSAPP INTEGRATION (ENHANCED)
+   ========================================================= */
+whatsappBtn.addEventListener('click', async () => {
   if (!selectedPackage) return;
+  
   const finalPrice = priceWithWeekend(selectedPackage.price);
   const daysAway = daysFromToday(selectedDateKey);
   const isFullPayment = daysAway < FULL_PAYMENT_THRESHOLD_DAYS;
   const requiredAmount = isFullPayment ? finalPrice : Math.round(finalPrice * DEPOSIT_PERCENT);
 
+  // Show loading state
+  whatsappBtn.disabled = true;
+  whatsappBtn.textContent = 'جاري إنشاء الحجز...';
+
+  // Create booking in database
+  if (typeof createBooking === 'function') {
+    const bookingData = {
+      customer_name: 'عميل جديد', // Will be updated from WhatsApp message
+      phone: WHATSAPP_NUMBER,
+      booking_date: selectedDateKey,
+      period: selectedPackage.key,
+      price: finalPrice,
+      deposit_amount: requiredAmount
+    };
+
+    const result = await createBooking(bookingData);
+    
+    if (result.error) {
+      console.error('Failed to create booking:', result.error);
+      whatsappBtn.disabled = false;
+      whatsappBtn.textContent = 'تأكيد الحجز عبر واتساب';
+      alert('حدث خطأ في إنشاء الحجز. يرجى المحاولة مرة أخرى.');
+      return;
+    }
+
+    // Update availability
+    if (typeof updateAvailabilityAfterBooking === 'function') {
+      await updateAvailabilityAfterBooking(selectedDateKey, selectedPackage.key);
+    }
+  }
+
+  // Compose WhatsApp message
   const msg = [
     `مرحبًا، أرغب بحجز ${CHALET_NAME}`,
     `التاريخ: ${formatArabicDate(selectedDateKey)}`,
@@ -500,7 +602,15 @@ whatsappBtn.addEventListener('click', () => {
     `السعر الإجمالي: ${finalPrice} ر.ع${selectedIsWeekend ? ' (شامل سعر نهاية الأسبوع)' : ''}`,
     `${isFullPayment ? 'المبلغ المطلوب دفعه (كامل)' : 'العربون المطلوب (٤٠٪)'}: ${requiredAmount} ر.ع`,
   ].join('\n');
+  
+  // Open WhatsApp
   window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  // Reset button
+  setTimeout(() => {
+    whatsappBtn.disabled = false;
+    whatsappBtn.textContent = 'تأكيد الحجز عبر واتساب';
+  }, 1000);
 });
 
 document.getElementById('modalClose').addEventListener('click', () => {

@@ -40,6 +40,7 @@
     </div>
     <nav class="dash-jumpnav">
 <!-- Overview link removed -->
+      <a href="#sec-bookings">الحجوزات</a>
       <a href="#sec-gallery">الصور</a>
       <a href="#sec-features">المميزات</a>
       <a href="#sec-packages">الباقات</a>
@@ -53,6 +54,17 @@
   <main class="dash-body">
 
 <!-- Overview section removed -->
+
+    <!-- BOOKINGS -->
+    <section class="dash-block" id="sec-bookings">
+      <div class="panel-head">
+        <h2>إدارة الحجوزات</h2>
+        <button class="btn-add" id="exportBookingsBtn" onclick="exportBookingsToCSV()"><span class="btn-icon-inline" data-icon="download"></span> تصدير CSV</button>
+      </div>
+      <div id="bookingsStats"></div>
+      <p class="panel-hint">قائمة بجميع الحجوزات مع إمكانية تحديث الحالة أو الحذف.</p>
+      <div class="admin-list" id="bookingsAdminList"></div>
+    </section>
 
     <!-- GALLERY -->
     <section class="dash-block" id="sec-gallery">
@@ -138,6 +150,8 @@
 <script src="../js/icons.js" defer></script>
 <script src="../js/time-utils.js" defer></script>
 <script src="../js/supabase-client.js" defer></script>
+<script src="../js/supabase-bookings.js" defer></script>
+<script src="js/admin-bookings.js" defer></script>
 <script src="js/admin.js" defer></script>
 </body>
 </html>
