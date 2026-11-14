@@ -1,13 +1,77 @@
 /* =========================================================
-   Supabase Bookings Module
-   Handles booking creation and status management
+   Bookings module — shared by the site and the admin panel
+   • Booking statuses + the rule "which periods does a booking close"
+   • resolveDaySlots(): the ONE place that decides what a calendar day looks like
+   • createBooking (site) / updateBookingStatus + fetchAllBookings (admin)
+
+   Lifecycle:  بانتظار العربون (pending hold, orange)
+                 ├─ تم الدفع  → period is locked in the calendar
+                 └─ ملغاة     → period is released; kept for the stats
+   Nothing here writes to the `availability` table: the calendar is
+   always computed from `availability` (manual blocks by the owner)
+   + bookings, so cancelling a booking re-opens its period by itself.
    ========================================================= */
 
+const BOOKING_STATUS = {
+  PENDING: 'بانتظار العربون',
+  PAID: 'تم الدفع',
+  CANCELLED: 'ملغاة',
+};
+
+const ALL_PERIODS = ['morning', 'evening', 'full_day', 'overnight'];
+
+/* Periods that become unavailable when a booking takes the given period */
+const PERIOD_CLOSES = {
+  full_day: ALL_PERIODS,
+  overnight: ALL_PERIODS,
+  morning: ['morning', 'full_day', 'overnight'],
+  evening: ['evening', 'full_day', 'overnight'],
+};
+
 /**
- * Create a new booking in the database
- * Called when user confirms booking via WhatsApp
- * @param {Object} bookingData - Booking details
- * @returns {Promise<Object>} - Created booking or error
+ * State of every period for one day.
+ * @param {Object|null} manual  availability row (a period === false means closed by the owner)
+ * @param {Array} holds         [{ period, status }] bookings of that day
+ * @returns {{morning,evening,full_day,overnight}} each 'open' | 'pending' | 'closed'
+ *   pending = held by a booking waiting for payment (not paid yet)
+ *   closed  = unavailable (paid, closed by the owner, or overlapping a booking)
+ */
+function resolveDaySlots(manual, holds = []) {
+  const slots = {};
+  ALL_PERIODS.forEach(p => { slots[p] = manual && manual[p] === false ? 'closed' : 'open'; });
+
+  const active = holds.filter(h => PERIOD_CLOSES[h.period]);
+  const paid = active.filter(h => h.status === BOOKING_STATUS.PAID);
+  const pending = active.filter(h => h.status === BOOKING_STATUS.PENDING);
+
+  paid.forEach(h => PERIOD_CLOSES[h.period].forEach(p => { slots[p] = 'closed'; }));
+  pending.forEach(h => PERIOD_CLOSES[h.period].forEach(p => {
+    if (slots[p] !== 'open') return;
+    slots[p] = p === h.period ? 'pending' : 'closed';
+  }));
+  return slots;
+}
+
+/** One status for the whole day: 'available' | 'partial' | 'pending' | 'booked' */
+function summarizeDay(slots) {
+  const values = ALL_PERIODS.map(p => slots[p]);
+  if (values.includes('pending')) return 'pending';
+  const open = values.filter(v => v === 'open').length;
+  if (open === 0) return 'booked';
+  return open === values.length ? 'available' : 'partial';
+}
+
+/** Group a flat list of bookings by date -> [{ period, status }] */
+function groupHoldsByDate(rows) {
+  const map = {};
+  (rows || []).forEach(r => {
+    (map[r.booking_date] = map[r.booking_date] || []).push({ period: r.period, status: r.status });
+  });
+  return map;
+}
+
+/**
+ * Create a new booking (site). Starts as a pending hold.
  */
 async function createBooking(bookingData) {
   if (!isSupabaseReady()) {
@@ -26,7 +90,7 @@ async function createBooking(bookingData) {
         period: bookingData.period,
         price: bookingData.price,
         deposit_amount: bookingData.deposit_amount,
-        status: 'بانتظار العربون'
+        status: BOOKING_STATUS.PENDING
       }]);
 
     if (error) {
@@ -42,10 +106,8 @@ async function createBooking(bookingData) {
 }
 
 /**
- * Update booking status
- * @param {string} bookingId - Booking UUID
- * @param {string} newStatus - New status ('بانتظار العربون', 'تم الدفع', 'ملغاة')
- * @returns {Promise<Object>} - Updated booking or error
+ * Update a booking's status (admin).
+ * Fails loudly when 0 rows changed (e.g. blocked by RLS) instead of pretending it worked.
  */
 async function updateBookingStatus(bookingId, newStatus) {
   if (!isSupabaseReady()) {
@@ -64,6 +126,9 @@ async function updateBookingStatus(bookingId, newStatus) {
       console.error('Status update failed:', error);
       return { error };
     }
+    if (!data || data.length === 0) {
+      return { error: { message: 'لم يتم تحديث أي حجز (تحقق من الصلاحيات)' } };
+    }
 
     return { data };
   } catch (e) {
@@ -74,7 +139,6 @@ async function updateBookingStatus(bookingId, newStatus) {
 
 /**
  * Fetch all bookings (admin only)
- * @returns {Promise<Array>} - List of bookings
  */
 async function fetchAllBookings() {
   if (!isSupabaseReady()) return null;
@@ -94,117 +158,5 @@ async function fetchAllBookings() {
   } catch (e) {
     console.warn('Bookings fetch error:', e);
     return null;
-  }
-}
-
-/**
- * Delete a booking (admin only)
- * @param {string} bookingId - Booking UUID
- * @returns {Promise<Object>} - Result
- */
-async function deleteBooking(bookingId) {
-  if (!isSupabaseReady()) {
-    console.warn('Supabase not ready');
-    return { error: 'Supabase not configured' };
-  }
-
-  try {
-    const { error } = await supabaseClient
-      .from('bookings')
-      .delete()
-      .eq('id', bookingId);
-
-    if (error) {
-      console.error('Booking deletion failed:', error);
-      return { error };
-    }
-
-    return { success: true };
-  } catch (e) {
-    console.error('Booking deletion error:', e);
-    return { error: e };
-  }
-}
-
-/**
- * Update availability when a booking is confirmed
- * If full_day is booked, close all periods for that date
- * @param {string} date - Date in YYYY-MM-DD format
- * @param {string} period - Period ('morning', 'evening', 'full_day', 'overnight')
- * @returns {Promise<Object>} - Result
- */
-async function updateAvailabilityAfterBooking(date, period) {
-  if (!isSupabaseReady()) {
-    console.warn('Supabase not ready');
-    return { error: 'Supabase not configured' };
-  }
-
-  try {
-    // Fetch current availability for the date
-    const { data: existingAvail, error: fetchError } = await supabaseClient
-      .from('availability')
-      .select('*')
-      .eq('date', date)
-      .single();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      // PGRST116 = no rows found, which is fine
-      console.warn('Availability fetch failed:', fetchError);
-      return { error: fetchError };
-    }
-
-    let updateData = {};
-
-    if (period === 'full_day') {
-      // Close all periods
-      updateData = {
-        morning: false,
-        evening: false,
-        full_day: false,
-        overnight: false
-      };
-    } else if (period === 'morning') {
-      updateData = { morning: false };
-    } else if (period === 'evening') {
-      updateData = { evening: false };
-    } else if (period === 'overnight') {
-      updateData = { overnight: false };
-    }
-
-    if (existingAvail) {
-      // Update existing record
-      const { error: updateError } = await supabaseClient
-        .from('availability')
-        .update(updateData)
-        .eq('date', date);
-
-      if (updateError) {
-        console.error('Availability update failed:', updateError);
-        return { error: updateError };
-      }
-    } else {
-      // Insert new record
-      const newRecord = {
-        date,
-        morning: period !== 'morning' && period !== 'full_day',
-        evening: period !== 'evening' && period !== 'full_day',
-        full_day: period !== 'full_day',
-        overnight: period !== 'overnight' && period !== 'full_day'
-      };
-
-      const { error: insertError } = await supabaseClient
-        .from('availability')
-        .insert([newRecord]);
-
-      if (insertError) {
-        console.error('Availability insert failed:', insertError);
-        return { error: insertError };
-      }
-    }
-
-    return { success: true };
-  } catch (e) {
-    console.error('Availability update error:', e);
-    return { error: e };
   }
 }

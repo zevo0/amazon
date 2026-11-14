@@ -40,8 +40,6 @@ const DEMO_PACKAGES = [
   { key: 'overnight', icon: 'moon', name: 'مع المبيت', start_time: '16:00', end_time: '12:00', price: 65 },
 ];
 
-const DEFAULT_AVAILABILITY = { morning: true, evening: true, full_day: true, overnight: true };
-
 /* Package icon mapping (kept in sync with admin/js/admin.js) */
 const PACKAGE_ICON_MAP = { morning: 'sun', evening: 'moon', full_day: 'fullDay', overnight: 'home' };
 
@@ -252,37 +250,51 @@ const MONTH_LABELS = ['يناير','فبراير','مارس','أبريل','ما�
 let viewYear = new Date().getFullYear();
 let viewMonth = new Date().getMonth();
 let packagesData = DEMO_PACKAGES;
-let availabilityMap = {};
-let calendarInitialized = false;
+let calendarData = { avail: {}, holds: {} };   // data of the month on screen
+const monthCache = {};                         // 'YYYY-MM' -> calendarData
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function dateKey(y, m, d) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
+function monthKey(y, m) { return `${y}-${pad(m + 1)}`; }
 function isWeekendDate(y, m, d) { return WEEKEND_DAYS.includes(new Date(y, m, d).getDay()); }
 
-function statusForDay(avail) {
-  if (!avail) return 'available';
-  const values = [avail.morning, avail.evening, avail.full_day, avail.overnight];
-  const availableCount = values.filter(Boolean).length;
-  if (availableCount === 0) return 'booked';
-  if (availableCount === values.length) return 'available';
-  return 'partial';
+/* What every period of a day looks like (open / pending / closed) */
+function slotsForDate(key) {
+  return resolveDaySlots(calendarData.avail[key], calendarData.holds[key] || []);
 }
 
-async function loadAvailabilityForMonth(year, month) {
-  const fetched = await fetchAvailability(year, month);
-  const map = {};
-  if (fetched && fetched.length) fetched.forEach(row => { map[row.date] = row; });
-  return map;
+async function loadCalendarData(year, month) {
+  const [availRows, bookingRows] = await Promise.all([
+    fetchAvailability(year, month),
+    fetchCalendarBookings(year, month),
+  ]);
+  const avail = {};
+  (availRows || []).forEach(row => { avail[row.date] = row; });
+  return { avail, holds: groupHoldsByDate(bookingRows) };
 }
 
-function renderCalendar(avMap = {}) {
-  availabilityMap = avMap;
+/* Fetch the month on screen and redraw (ignored if the user already moved to another month) */
+async function refreshCalendar() {
+  if (typeof fetchAvailability !== 'function') return;
+  const y = viewYear, m = viewMonth;
+  try {
+    const data = await loadCalendarData(y, m);
+    monthCache[monthKey(y, m)] = data;
+    if (y === viewYear && m === viewMonth) renderCalendar(data);
+  } catch (e) {
+    console.warn('calendar refresh failed', e);
+  }
+}
+
+function renderCalendar(data = { avail: {}, holds: {} }, { loading = false } = {}) {
+  calendarData = data;
   document.getElementById('calendarTitle').textContent = `${MONTH_LABELS[viewMonth]} ${viewYear}`;
 
   const dowRow = document.getElementById('dowRow');
   dowRow.innerHTML = DOW_LABELS.map(d => `<div class="dow">${d}</div>`).join('');
 
   const grid = document.getElementById('calendarGrid');
+  grid.classList.toggle('loading', loading);
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const today = new Date();
@@ -293,36 +305,21 @@ function renderCalendar(avMap = {}) {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const key = dateKey(viewYear, viewMonth, d);
-    const cellDate = new Date(viewYear, viewMonth, d);
-    const isPast = cellDate < today;
-
-    let status;
-    if (isPast) {
-      status = 'past';
-    } else {
-      const avail = availabilityMap[key] || DEFAULT_AVAILABILITY;
-      status = statusForDay(avail);
-    }
-
+    const isPast = new Date(viewYear, viewMonth, d) < today;
+    const status = isPast ? 'past' : summarizeDay(slotsForDate(key));
     cells += `<div class="day-cell ${status}" data-date="${key}">${d}</div>`;
   }
 
   grid.innerHTML = cells;
 
-  grid.querySelectorAll('.day-cell.available, .day-cell.partial').forEach(cell => {
+  grid.querySelectorAll('.day-cell.available, .day-cell.partial, .day-cell.pending').forEach(cell => {
     cell.addEventListener('click', () => openBookingModal(cell.dataset.date));
   });
-  
-  calendarInitialized = true;
+
 }
 
-renderCalendar();
-
-if (typeof fetchAvailability === 'function') {
-  loadAvailabilityForMonth(viewYear, viewMonth).then(map => {
-    renderCalendar(map);
-  }).catch(() => {});
-}
+renderCalendar(undefined, { loading: true });
+refreshCalendar();
 
 /* =========================================================
    BOOKING PRICE (dynamic, from Admin Panel)
@@ -355,9 +352,7 @@ if (typeof isSupabaseReady === 'function' && isSupabaseReady()) {
   try {
     supabaseClient
       .channel('site-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'availability' }, () => {
-        loadAvailabilityForMonth(viewYear, viewMonth).then(map => renderCalendar(map)).catch(() => {});
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'availability' }, refreshCalendar)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'packages' }, () => {
         if (typeof fetchPackages === 'function') {
           fetchPackages().then(data => {
@@ -374,16 +369,21 @@ if (typeof isSupabaseReady === 'function' && isSupabaseReady()) {
   }
 }
 
-document.getElementById('prevMonth').addEventListener('click', () => {
-  viewMonth--;
+function goToMonth(delta) {
+  viewMonth += delta;
   if (viewMonth < 0) { viewMonth = 11; viewYear--; }
-  renderCalendar(availabilityMap);
-});
-document.getElementById('nextMonth').addEventListener('click', () => {
-  viewMonth++;
   if (viewMonth > 11) { viewMonth = 0; viewYear++; }
-  renderCalendar(availabilityMap);
-});
+  const cached = monthCache[monthKey(viewYear, viewMonth)];
+  renderCalendar(cached, { loading: !cached });   // never show an unloaded month as "all available"
+  refreshCalendar();
+}
+document.getElementById('prevMonth').addEventListener('click', () => goToMonth(-1));
+document.getElementById('nextMonth').addEventListener('click', () => goToMonth(1));
+
+/* Bookings are not part of realtime (visitors can't read that table), so re-check
+   every 30s and whenever the tab comes back to the foreground. */
+setInterval(() => { if (!document.hidden) refreshCalendar(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshCalendar(); });
 
 /* =========================================================
    STEPPER
@@ -451,10 +451,15 @@ async function openBookingModal(key) {
   dayCardNumber.textContent = d;
   dayCardMonth.textContent = dateObj.toLocaleDateString('ar-OM', { month: 'long', year: 'numeric' });
 
-  const avail = availabilityMap[key] || DEFAULT_AVAILABILITY;
-  const dayStatus = statusForDay(avail);
-  dayCardStatus.className = 'day-card-status' + (dayStatus === 'partial' ? ' partial' : '');
-  dayCardStatus.innerHTML = `<i></i> ${dayStatus === 'partial' ? 'متاح جزئيًا' : 'متاح'}`;
+  const slots = slotsForDate(key);
+  const dayStatus = summarizeDay(slots);
+  const chip = {
+    available: ['', 'متاح'],
+    partial: [' partial', 'متاح جزئيًا'],
+    pending: [' pending', 'محجوز مبدئيًا'],
+  }[dayStatus] || ['', 'متاح'];
+  dayCardStatus.className = 'day-card-status' + chip[0];
+  dayCardStatus.innerHTML = `<i></i> ${chip[1]}`;
 
   selectedIsWeekend = isWeekendDate(y, m - 1, d);
   modalWeekendNote.innerHTML = selectedIsWeekend
@@ -470,14 +475,19 @@ async function openBookingModal(key) {
   packagesData = packages;
 
   packageList.innerHTML = packagesData.map(pkg => {
-    const isAvailable = avail[pkg.key] !== false;
+    const slotState = slots[pkg.key] || 'open';
     const finalPrice = priceWithWeekend(pkg.price);
-    return `<div class="package-item ${isAvailable ? 'selectable' : 'disabled'}" data-key="${pkg.key}">
+    const note = slotState === 'closed' ? ' · غير متاح' : '';
+    const badge = slotState === 'pending'
+      ? `<span class="package-badge">${icon('clock', 12)} محجوز مبدئيًا (بانتظار الدفع)</span>`
+      : '';
+    return `<div class="package-item ${slotState === 'open' ? 'selectable' : slotState === 'pending' ? 'pending' : 'disabled'}" data-key="${pkg.key}">
       <div class="package-info">
         <span class="package-icon">${icon(PACKAGE_ICON_MAP[pkg.key] || pkg.icon || 'sparkles', 20)}</span>
         <div>
           <div class="package-name">${pkg.name}</div>
-          <div class="package-time">${displayTimeRange(pkg)}${isAvailable ? '' : ' · غير متاح'}</div>
+          <div class="package-time">${displayTimeRange(pkg)}${note}</div>
+          ${badge}
         </div>
       </div>
       <div class="package-price">${finalPrice}<span class="price-unit">${omr()}</span></div>
@@ -566,33 +576,36 @@ whatsappBtn.addEventListener('click', async () => {
   // Show loading state
   whatsappBtn.disabled = true;
   whatsappBtn.textContent = 'جاري إنشاء الحجز...';
+  const resetBtn = () => { whatsappBtn.disabled = false; whatsappBtn.textContent = 'تأكيد الحجز عبر واتساب'; };
 
-  // Create booking in database
-  if (typeof createBooking === 'function') {
-    const bookingData = {
-      customer_name: 'عميل جديد', // Will be updated from WhatsApp message
-      phone: WHATSAPP_NUMBER,
-      booking_date: selectedDateKey,
-      period: selectedPackage.key,
-      price: finalPrice,
-      deposit_amount: requiredAmount
-    };
-
-    const result = await createBooking(bookingData);
-    
-    if (result.error) {
-      console.error('Failed to create booking:', result.error);
-      whatsappBtn.disabled = false;
-      whatsappBtn.textContent = 'تأكيد الحجز عبر واتساب';
-      alert('حدث خطأ في إنشاء الحجز. يرجى المحاولة مرة أخرى.');
-      return;
-    }
-
-    // Update availability
-    if (typeof updateAvailabilityAfterBooking === 'function') {
-      await updateAvailabilityAfterBooking(selectedDateKey, selectedPackage.key);
-    }
+  // Someone else may have taken this period since the calendar was loaded
+  await refreshCalendar();
+  if (slotsForDate(selectedDateKey)[selectedPackage.key] !== 'open') {
+    resetBtn();
+    modalOverlay.classList.remove('open');
+    setStep(1);
+    uiAlert('هذه الفترة تم حجزها قبل لحظات. اختر فترة أو يومًا آخر.', { title: 'الفترة غير متاحة', type: 'error' });
+    return;
   }
+
+  // Create the booking (starts as a pending hold: the day turns orange in the calendar)
+  const result = await createBooking({
+    customer_name: 'عميل جديد', // Will be updated from WhatsApp message
+    phone: WHATSAPP_NUMBER,
+    booking_date: selectedDateKey,
+    period: selectedPackage.key,
+    price: finalPrice,
+    deposit_amount: requiredAmount
+  });
+
+  if (result.error) {
+    console.error('Failed to create booking:', result.error);
+    resetBtn();
+    uiAlert('حدث خطأ في إنشاء الحجز. يرجى المحاولة مرة أخرى.', { type: 'error' });
+    return;
+  }
+
+  refreshCalendar();
 
   // Compose WhatsApp message
   const msg = [
@@ -603,14 +616,11 @@ whatsappBtn.addEventListener('click', async () => {
     `${isFullPayment ? 'المبلغ المطلوب دفعه (كامل)' : 'العربون المطلوب (٤٠٪)'}: ${requiredAmount} ر.ع`,
   ].join('\n');
   
-  // Open WhatsApp
+  // Open WhatsApp, then close the modal so the booking can't be sent twice
   window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
-
-  // Reset button
-  setTimeout(() => {
-    whatsappBtn.disabled = false;
-    whatsappBtn.textContent = 'تأكيد الحجز عبر واتساب';
-  }, 1000);
+  resetBtn();
+  modalOverlay.classList.remove('open');
+  setStep(1);
 });
 
 document.getElementById('modalClose').addEventListener('click', () => {

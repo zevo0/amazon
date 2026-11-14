@@ -39,6 +39,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-secondary { background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.4); }
 .btn-secondary:hover { background: rgba(255,255,255,0.3); }
 .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+/* Hidden state of overlays: style.css loads async, so without this they flash on refresh */
+.lightbox, .modal-overlay { position: fixed; display: none; }
+.terms-overlay { position: fixed; opacity: 0; visibility: hidden; }
+.mobile-drawer { position: fixed; top: 0; right: 0; transform: translateX(100%); }
 </style>
 
 <!-- ⚡ Preload critical resources -->
@@ -53,6 +57,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <!-- ⚡ Main stylesheet (non-blocking) -->
 <link rel="stylesheet" href="css/style.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="css/style.css"></noscript>
+<link rel="stylesheet" href="css/dialog.css" media="print" onload="this.media='all'">
 
 <!-- Structured data -->
 <script type="application/ld+json">
@@ -254,6 +259,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <div class="legend">
         <span><i class="dot-available"></i> متاح</span>
         <span><i class="dot-partial"></i> متاح جزئيًا</span>
+        <span><i class="dot-pending"></i> محجوز مبدئيًا</span>
         <span><i class="dot-booked"></i> محجوز</span>
         <span><i class="dot-past"></i> غير متاح</span>
       </div>
@@ -368,6 +374,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 <!-- ⚡ Load app scripts with defer (non-blocking) -->
 <script src="js/icons.js" defer></script>
+<script src="js/dialog.js" defer></script>
 <script src="js/time-utils.js" defer></script>
 <script src="js/supabase-client.js" defer></script>
 <script src="js/supabase-bookings.js" defer></script>

@@ -1,0 +1,158 @@
+/* =========================================================
+   Dialogs & toasts — shared by the site and the admin panel
+   (replaces the browser's alert / confirm / prompt)
+   Self-contained: works with or without the page's :root tokens.
+   ========================================================= */
+
+.ui-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+  background: rgba(15, 24, 20, 0.68);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  direction: rtl;
+  font-family: var(--font-body, 'Tajawal', sans-serif);
+}
+
+.ui-dialog-overlay.show { opacity: 1; }
+
+.ui-dialog {
+  width: 100%;
+  max-width: 380px;
+  background: var(--beige-soft, #F8F4EB);
+  color: var(--charcoal, #2B2A28);
+  border-radius: 20px;
+  padding: 30px 26px 22px;
+  text-align: center;
+  box-shadow: 0 30px 70px -20px rgba(15, 24, 20, 0.55);
+  transform: translateY(14px) scale(0.97);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ui-dialog-overlay.show .ui-dialog { transform: none; }
+
+.ui-dialog-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #E2C48D, #C89B5A);
+  box-shadow: 0 10px 24px -10px rgba(200, 155, 90, 0.8);
+}
+
+.ui-dialog-icon.success { background: linear-gradient(135deg, #4CB58F, #2E8B6E); box-shadow: 0 10px 24px -10px rgba(46, 139, 110, 0.8); }
+.ui-dialog-icon.error,
+.ui-dialog-icon.danger  { background: linear-gradient(135deg, #D9675E, #B23F37); box-shadow: 0 10px 24px -10px rgba(178, 63, 55, 0.8); }
+
+.ui-dialog-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--forest, #2A2F4C);
+  margin-bottom: 8px;
+}
+
+.ui-dialog-message {
+  font-size: 0.95rem;
+  line-height: 1.8;
+  opacity: 0.78;
+  margin-bottom: 22px;
+  white-space: pre-line;
+}
+
+.ui-dialog-input {
+  width: 100%;
+  margin-bottom: 22px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(38, 36, 32, 0.14);
+  background: #fff;
+  font: inherit;
+  font-size: 1rem;
+  color: inherit;
+  text-align: center;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ui-dialog-input:focus {
+  outline: none;
+  border-color: var(--amber, #C89B5A);
+  box-shadow: 0 0 0 3px rgba(200, 155, 90, 0.2);
+}
+
+.ui-dialog-actions { display: flex; gap: 10px; }
+
+.ui-dialog-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.ui-dialog-btn:active { transform: scale(0.97); }
+.ui-dialog-btn:focus-visible { outline: 2px solid var(--amber, #C89B5A); outline-offset: 2px; }
+
+.ui-dialog-btn.primary { background: var(--forest, #2A2F4C); color: #fff; }
+.ui-dialog-btn.primary:hover { background: var(--forest-deep, #1B1E33); }
+.ui-dialog-btn.danger { background: linear-gradient(135deg, #D9675E, #B23F37); color: #fff; }
+.ui-dialog-btn.danger:hover { box-shadow: 0 8px 20px -8px rgba(178, 63, 55, 0.7); }
+.ui-dialog-btn.ghost { background: var(--beige, #EDE6D7); color: var(--forest, #2A2F4C); }
+.ui-dialog-btn.ghost:hover { background: #e4dcc9; }
+
+/* ---------- Toast ---------- */
+.ui-toast-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  pointer-events: none;
+  direction: rtl;
+  font-family: var(--font-body, 'Tajawal', sans-serif);
+}
+
+.ui-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 460px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: var(--forest-deep, #1B1E33);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 14px 34px -12px rgba(15, 24, 20, 0.6);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ui-toast.show { opacity: 1; transform: none; }
+.ui-toast i { width: 8px; height: 8px; border-radius: 50%; background: var(--amber-soft, #E2C48D); flex-shrink: 0; }
+.ui-toast.success i { background: #5FD0A5; }
+.ui-toast.error i { background: #F0857C; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-dialog-overlay, .ui-dialog, .ui-toast { transition: none; }
+}

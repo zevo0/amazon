@@ -1094,6 +1094,11 @@ section { position: relative; }
   cursor: pointer;
 }
 
+.day-cell.pending {
+  --tint: linear-gradient(rgba(240,112,32,0.68), rgba(194,78,14,0.74));
+  cursor: pointer;
+}
+
 .day-cell.booked {
   --tint: linear-gradient(rgba(196,82,74,0.6), rgba(150,58,52,0.65));
   cursor: not-allowed;
@@ -1106,7 +1111,8 @@ section { position: relative; }
 }
 
 .day-cell.available:hover,
-.day-cell.partial:hover {
+.day-cell.partial:hover,
+.day-cell.pending:hover {
   transform: scale(1.06);
 }
 
@@ -1143,6 +1149,7 @@ section { position: relative; }
 
 .legend .dot-available { background: #3E9E92; }
 .legend .dot-partial { background: #C8963A; }
+.legend .dot-pending { background: #F07020; }
 .legend .dot-booked { background: #C4524A; }
 .legend .dot-past { background: rgba(255,255,255,0.2); }
 
@@ -1309,6 +1316,12 @@ section { position: relative; }
   color: #f2d29b;
 }
 
+.day-card-status.pending {
+  background: rgba(240,112,32,0.24);
+  border-color: rgba(255,178,128,0.4);
+  color: #ffc399;
+}
+
 .modal-sub {
   opacity: 0.55;
   font-size: 0.8rem;
@@ -1359,6 +1372,38 @@ section { position: relative; }
   opacity: 0.35;
   cursor: not-allowed;
   filter: grayscale(0.4);
+}
+
+/* held by a booking that is waiting for payment */
+.package-item.pending {
+  cursor: not-allowed;
+  border-color: rgba(240,112,32,0.45);
+  background: linear-gradient(135deg, rgba(240,112,32,0.1), rgba(240,112,32,0.03));
+}
+
+.package-item.pending .package-icon {
+  background: rgba(240,112,32,0.16);
+  color: #C2500C;
+}
+
+.package-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #B34A0B;
+  background: rgba(240,112,32,0.14);
+  border: 1px solid rgba(240,112,32,0.3);
+}
+
+.calendar-grid.loading {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.2s;
 }
 
 .package-info {

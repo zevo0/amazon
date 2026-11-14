@@ -164,6 +164,18 @@ async function initDashboard() {
   await renderFeaturesAdmin();
   await renderPackagesAdmin();
   await renderCalendarAdmin();
+
+  // New bookings arrive while the dashboard is open: refresh live, and when the tab comes back
+  if (!DEMO_MODE) {
+    try {
+      supabaseClient.channel('admin-bookings')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, reloadBookings)
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime bookings unavailable', e);
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reloadBookings(); });
+  }
 }
 
 /* =========================================================
@@ -197,18 +209,10 @@ async function renderSettingsAdmin() {
 
     if (!DEMO_MODE) {
       const { error } = await supabaseClient.from('settings').update(updated).eq('id', 1);
-      if (error) alert('خطأ في الحفظ: ' + error.message);
-      else {
-        const confirm = document.getElementById('saveConfirm');
-        if (confirm) {
-          confirm.textContent = '✅ تم الحفظ بنجاح';
-          setTimeout(() => confirm.textContent = '', 3000);
-        } else {
-          alert('تم الحفظ بنجاح');
-        }
-      }
+      if (error) uiAlert('خطأ في الحفظ: ' + error.message, { type: 'error' });
+      else uiToast('تم الحفظ بنجاح', { type: 'success' });
     } else {
-      alert('وضع العرض التجريبي: لا يمكن الحفظ.');
+      uiAlert('وضع العرض التجريبي: لا يمكن الحفظ.');
     }
   };
 
@@ -276,11 +280,11 @@ async function renderGalleryAdmin() {
 }
 
 async function deleteGalleryItem(id) {
-  if (!confirm('هل أنت متأكد من حذف هذه الصورة؟')) return;
+  if (!await uiConfirm('سيتم حذف الصورة من المعرض نهائيًا.', { title: 'حذف الصورة؟', confirmText: 'نعم، احذف', cancelText: 'تراجع', danger: true })) return;
   if (!DEMO_MODE) {
     const { error } = await supabaseClient.from('gallery').delete().eq('id', id);
     if (error) {
-      alert('خطأ في الحذف: ' + error.message);
+      uiAlert('خطأ في الحذف: ' + error.message, { type: 'error' });
       return;
     }
   }
@@ -318,7 +322,7 @@ async function uploadGalleryImage(galleryId) {
     if (!file) return;
 
     if (DEMO_MODE) {
-      alert('أنت في وضع العرض التجريبي. قم بتفعيل Supabase لرفع الصور.');
+      uiAlert('أنت في وضع العرض التجريبي. قم بتفعيل Supabase لرفع الصور.');
       return;
     }
 
@@ -371,9 +375,9 @@ async function uploadGalleryImage(galleryId) {
       }
 
       await renderGalleryAdmin();
-      alert('تم الرفع والحفظ بنجاح');
+      uiToast('تم الرفع والحفظ بنجاح', { type: 'success' });
     } catch (err) {
-      alert('فشل العملية: ' + err.message);
+      uiAlert('فشل العملية: ' + err.message, { type: 'error' });
       console.error(err);
     }
   });
@@ -414,7 +418,7 @@ async function renderFeaturesAdmin() {
 }
 
 async function addNewFeature() {
-  const title = prompt('أدخل اسم الميزة الجديدة:');
+  const title = (await uiPrompt('أدخل اسم الميزة الجديدة', { title: 'ميزة جديدة', placeholder: 'مثال: مسبح خاص', confirmText: 'إضافة' }) || '').trim();
   if (!title) return;
   
   const newFeature = {
@@ -428,7 +432,7 @@ async function addNewFeature() {
     if (!error && data) {
       state.features.push(data[0]);
     } else {
-      alert('خطأ في الإضافة: ' + (error?.message || 'فشل الاتصال'));
+      uiAlert('خطأ في الإضافة: ' + (error?.message || 'فشل الاتصال'), { type: 'error' });
     }
   } else {
     state.features.push({ ...newFeature, id: Date.now() });
@@ -437,12 +441,12 @@ async function addNewFeature() {
 }
 
 async function deleteFeature(id) {
-  if (!confirm('هل أنت متأكد من حذف هذه الميزة؟')) return;
+  if (!await uiConfirm('ستختفي هذه الميزة من الموقع.', { title: 'حذف الميزة؟', confirmText: 'نعم، احذف', cancelText: 'تراجع', danger: true })) return;
   
   if (!DEMO_MODE) {
     const { error } = await supabaseClient.from('features').delete().eq('id', id);
     if (error) {
-      alert('خطأ في الحذف: ' + error.message);
+      uiAlert('خطأ في الحذف: ' + error.message, { type: 'error' });
       return;
     }
   }
@@ -550,7 +554,7 @@ async function updatePackageTime(key, field, value) {
 // ✅ تم الإصلاح: استخدام 'key' بدلاً من 'id'
 async function editPackagePrice(key) {
   const pkg = state.packages.find(p => p.key === key);
-  const newPrice = prompt(`السعر الجديد لباقة "${pkg.name}" (ر.ع):`, pkg.price);
+  const newPrice = await uiPrompt(`السعر الجديد لباقة "${pkg.name}" (ر.ع)`, { title: 'تعديل السعر', defaultValue: pkg.price, confirmText: 'حفظ' });
   if (newPrice === null || isNaN(parseFloat(newPrice))) return;
   pkg.price = parseFloat(newPrice);
 
@@ -605,23 +609,25 @@ async function renderCalendarAdmin() {
     gridEl.appendChild(document.createElement('div'));
   }
 
+  const holdsByDate = bookingHoldsByDate();
+  const dotClass = st => (st === 'open' ? '' : st === 'pending' ? 'pending' : 'off');
+
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${calendarViewYear}-${String(calendarViewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const avail = state.availability[dateStr] || { morning: true, evening: true, full_day: true, overnight: true };
-    
-    const isFullyBooked = !avail.morning && !avail.evening && !avail.full_day && !avail.overnight;
-    const isPartial = !isFullyBooked && (!avail.morning || !avail.evening || !avail.full_day || !avail.overnight);
-    const statusClass = isFullyBooked ? 'booked' : (isPartial ? 'partial' : 'available');
+    // same rule as the public calendar: manual closures + bookings (pending = orange, paid = closed)
+    const slots = resolveDaySlots(avail, holdsByDate[dateStr] || []);
+    const statusClass = summarizeDay(slots);
 
     const dayCell = document.createElement('div');
     dayCell.className = `admin-day-cell ${statusClass}`;
     dayCell.innerHTML = `
       <div class="day-num">${d}</div>
       <div class="day-slots">
-        <span class="slot-dot ${avail.morning?'':'off'}" title="صباحي"></span>
-        <span class="slot-dot ${avail.evening?'':'off'}" title="مسائي"></span>
-        <span class="slot-dot ${avail.full_day?'':'off'}" title="يوم كامل"></span>
-        <span class="slot-dot ${avail.overnight?'':'off'}" title="مبيت"></span>
+        <span class="slot-dot ${dotClass(slots.morning)}" title="صباحي"></span>
+        <span class="slot-dot ${dotClass(slots.evening)}" title="مسائي"></span>
+        <span class="slot-dot ${dotClass(slots.full_day)}" title="يوم كامل"></span>
+        <span class="slot-dot ${dotClass(slots.overnight)}" title="مبيت"></span>
       </div>
     `;
     dayCell.onclick = () => openDayPopover(dateStr, avail);
@@ -649,16 +655,24 @@ function openDayPopover(dateStr, avail) {
     document.body.appendChild(popover);
   }
 
+  const dayHolds = bookingHoldsByDate()[dateStr] || [];
+  const lockedByPaid = resolveDaySlots(null, dayHolds.filter(h => h.status === BOOKING_STATUS.PAID));
+  const pendingSlots = resolveDaySlots(null, dayHolds.filter(h => h.status === BOOKING_STATUS.PENDING));
+
   popover.innerHTML = `
     <div class="day-popover-card">
       <h4>تعديل التوفر: ${dateStr}</h4>
       <div class="popover-slots">
-        ${state.packages.map(p => `
-          <label class="slot-toggle">
-            <input type="checkbox" data-date="${dateStr}" data-slot="${p.key}" ${avail[p.key] ? 'checked' : ''}>
+        ${state.packages.map(p => {
+          const locked = lockedByPaid[p.key] === 'closed';
+          const pending = pendingSlots[p.key] === 'pending';
+          return `
+          <label class="slot-toggle ${locked ? 'locked' : ''}">
+            <input type="checkbox" data-date="${dateStr}" data-slot="${p.key}" ${avail[p.key] && !locked ? 'checked' : ''} ${locked ? 'disabled' : ''}>
             <span>${p.name}</span>
-          </label>
-        `).join('')}
+            ${locked ? '<em class="slot-tag paid">محجوز · تم الدفع</em>' : pending ? '<em class="slot-tag pending">محجوز مبدئيًا</em>' : ''}
+          </label>`;
+        }).join('')}
       </div>
       <div class="day-popover-actions">
         <button class="btn-save-pop" id="closePopover">إغلاق</button>
@@ -709,7 +723,7 @@ function openDayPopover(dateStr, avail) {
       }
 
       // تحديث واجهة الـ Popover لتعكس التغييرات التلقائية
-      popover.querySelectorAll('input[type="checkbox"]').forEach(input => {
+      popover.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach(input => {
         input.checked = state.availability[dateStr][input.dataset.slot];
       });
 

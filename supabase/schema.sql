@@ -13,6 +13,7 @@
 --   - القراءة العامة: settings, gallery, features, packages, availability
 --   - الكتابة: أي مستخدم مسجّل دخول (الأدمن الوحيد) — auth.role() = 'authenticated'
 --   - bookings: الزائر يقدر يضيف حجز فقط (INSERT) ولا يقدر يقرأ الحجوزات؛ الأدمن يدير الكل
+--   - calendar_bookings (view): الزائر يشوف (التاريخ، الفترة، الحالة) فقط للحجوزات النشطة — بدون اسم أو هاتف أو سعر
 -- =====================================================================
 
 
@@ -156,6 +157,31 @@ create policy admin_manage_bookings on public.bookings
 create policy public_insert_bookings on public.bookings
   for insert to anon, authenticated
   with check (status = 'بانتظار العربون');
+
+
+-- التقويم العام: يعرض الحجوزات النشطة (محجوز مبدئيًا / تم الدفع) بدون أي بيانات عميل.
+-- الـ view تعمل بصلاحيات مالكها عمدًا (تتجاوز RLS على bookings) وتكشف 3 أعمدة فقط.
+-- الحجوزات "ملغاة" لا تظهر، فتعود الفترة متاحة تلقائيًا.
+create or replace view public.calendar_bookings as
+  select booking_date, period, status
+  from public.bookings
+  where status in ('بانتظار العربون', 'تم الدفع');
+
+grant select on public.calendar_bookings to anon, authenticated;
+
+-- Realtime للوحة التحكم (تحديث الحجوزات فور وصولها) — يُضاف مرة واحدة فقط
+do $$
+declare t text;
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    foreach t in array array['bookings', 'availability'] loop
+      if not exists (select 1 from pg_publication_tables
+                     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+        execute format('alter publication supabase_realtime add table public.%I', t);
+      end if;
+    end loop;
+  end if;
+end $$;
 
 
 -- ---------------------------------------------------------------------

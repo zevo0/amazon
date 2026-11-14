@@ -94,12 +94,18 @@ async function fetchPackages() {
   }
 }
 
-/* ---- Availability for a given month ---- */
+/* ---- Month date range (YYYY-MM-DD .. last real day of the month) ---- */
+function monthRange(year, month) {
+  const mm = String(month + 1).padStart(2, '0');
+  const last = new Date(year, month + 1, 0).getDate();
+  return { start: `${year}-${mm}-01`, end: `${year}-${mm}-${String(last).padStart(2, '0')}` };
+}
+
+/* ---- Availability (manual open/closed per period) for a given month ---- */
 async function fetchAvailability(year, month) {
   if (!isSupabaseReady()) return null;
   try {
-    const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const end = `${year}-${String(month + 1).padStart(2, '0')}-31`;
+    const { start, end } = monthRange(year, month);
     const { data, error } = await supabaseClient
       .from('availability')
       .select('*')
@@ -112,6 +118,28 @@ async function fetchAvailability(year, month) {
     return data;
   } catch (e) {
     console.warn('availability fetch error', e);
+    return null;
+  }
+}
+
+/* ---- Active bookings (pending / paid) for a month — date + period + status only.
+        Reads the public view `calendar_bookings`, never the bookings table. ---- */
+async function fetchCalendarBookings(year, month) {
+  if (!isSupabaseReady()) return null;
+  try {
+    const { start, end } = monthRange(year, month);
+    const { data, error } = await supabaseClient
+      .from('calendar_bookings')
+      .select('booking_date, period, status')
+      .gte('booking_date', start)
+      .lte('booking_date', end);
+    if (error) {
+      console.warn('calendar bookings fetch failed', error);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.warn('calendar bookings fetch error', e);
     return null;
   }
 }

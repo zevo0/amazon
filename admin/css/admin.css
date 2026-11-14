@@ -167,14 +167,6 @@ input, textarea { font-family: inherit; }
   transition: background 0.3s;
 }
 .btn-add:hover, .btn-save:hover { background: var(--forest-deep); }
-.stat-card {
-  background: var(--white);
-  border-radius: var(--radius);
-  padding: 22px;
-  text-align: center;
-  box-shadow: 0 10px 30px -18px rgba(38,36,32,0.2);
-}
-.stat-label { font-size: 0.82rem; opacity: 0.6; }
 
 /* admin card grid (gallery) */
 .admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
@@ -290,7 +282,6 @@ input, textarea { font-family: inherit; }
   font-size: 0.92rem; background: var(--white); resize: vertical;
 }
 .form-grid input:focus, .form-grid textarea:focus { outline: none; border-color: var(--amber); }
-.save-confirm { color: var(--green-ok); font-size: 0.85rem; margin-top: 10px; height: 18px; }
 
 /* admin calendar */
 .admin-calendar-wrap { max-width: 620px; background: var(--white); border-radius: var(--radius); padding: 26px; box-shadow: 0 10px 30px -18px rgba(38,36,32,0.2); }
@@ -310,11 +301,13 @@ input, textarea { font-family: inherit; }
 .admin-day-cell:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
 .admin-day-cell.available { background: #f0f9f8; color: #1c6b62; border-color: rgba(62,158,146,0.1); }
 .admin-day-cell.partial { background: #fffcf5; color: #8a641f; border-color: rgba(200,150,58,0.1); }
+.admin-day-cell.pending { background: #fff3ea; color: #b34a0b; border-color: rgba(240,112,32,0.35); }
 .admin-day-cell.booked { background: #fff5f4; color: #8a332c; border-color: rgba(196,82,74,0.1); }
 
 .day-slots { display: flex; gap: 3px; margin-top: 4px; }
 .slot-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .slot-dot.off { opacity: 0.2; }
+.slot-dot.pending { background: #F07020; }
 
 /* Popover styling */
 .popover-slots { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
@@ -325,6 +318,10 @@ input, textarea { font-family: inherit; }
 }
 .slot-toggle:hover { background: var(--beige); }
 .slot-toggle input { width: 20px; height: 20px; accent-color: var(--forest); }
+.slot-toggle.locked { opacity: 0.7; cursor: not-allowed; }
+.slot-tag { margin-inline-start: auto; font-style: normal; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.slot-tag.paid { color: #1f7a5c; background: rgba(46,139,110,0.12); }
+.slot-tag.pending { color: #b34a0b; background: rgba(240,112,32,0.14); }
 
 /* day-edit popover */
 .day-popover {
@@ -386,21 +383,49 @@ input, textarea { font-family: inherit; }
   border-bottom: none;
 }
 
-.status-select {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1.5px solid rgba(38,36,32,0.12);
-  background: var(--white);
-  color: var(--charcoal);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: border-color 0.2s;
+.status-cell { white-space: nowrap; }
+
+/* "تم الدفع" — the one action on a pending booking */
+.btn-paid {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #5CCB9F 0%, #2E8B6E 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  box-shadow: 0 8px 18px -8px rgba(46, 139, 110, 0.7);
+  transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
 }
 
-.status-select:focus {
-  outline: none;
-  border-color: var(--amber);
+.btn-paid:hover { transform: translateY(-1px); box-shadow: 0 12px 22px -8px rgba(46, 139, 110, 0.8); filter: brightness(1.04); }
+.btn-paid:active { transform: scale(0.97); }
+.btn-paid:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+.status-sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #b34a0b;
 }
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.status-badge.paid { color: #1f7a5c; background: rgba(46, 139, 110, 0.12); border: 1px solid rgba(46, 139, 110, 0.28); }
+.status-badge.cancelled { color: #8a332c; background: rgba(196, 82, 74, 0.1); border: 1px solid rgba(196, 82, 74, 0.25); }
+
+.bookings-table tr.is-cancelled td:not(.status-cell) { opacity: 0.5; text-decoration: line-through; text-decoration-color: rgba(38, 36, 32, 0.35); }
 
 .btn-delete {
   width: 32px;
