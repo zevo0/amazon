@@ -1,47 +1,15 @@
 /* =========================================================
-   أمازون شاليه — Main site script (ENHANCED)
-   Instant Render + Async Data Loading + Booking Integration
+   Main site script
+   Instant render from site.config.js → then the owner's data
+   (Supabase) replaces it. Nothing client-specific lives in this file:
+   names, prices, packages, contact … all come from SiteConfig.
    ========================================================= */
 
-/* ---------- Config ---------- */
-const WHATSAPP_NUMBER = '96890992253';
-const CHALET_NAME = 'أمازون شاليه';
-const WEEKEND_SURCHARGE = 15;
-const WEEKEND_DAYS = [5, 6];
-const DEPOSIT_PERCENT = 0.4;
-const FULL_PAYMENT_THRESHOLD_DAYS = 3;
+/* Current configuration: site.config.js merged with the owner's settings row */
+const cfg = () => SiteConfig.current;
 
-/* Demo data — rendered IMMEDIATELY */
-const DEMO_AMENITIES = [
-  { id: 'pool', icon: 'amenityPool', title: 'مسبح خاص' },
-  { id: 'kids', icon: 'amenityKids', title: 'ألعاب أطفال' },
-  { id: 'court', icon: 'amenityCourt', title: 'ملعب كرة' },
-  { id: 'bbq', icon: 'amenityBBQ', title: 'شواء' },
-  { id: 'wifi', icon: 'amenityWifi', title: 'واي فاي' },
-  { id: 'bed', icon: 'amenityBed', title: 'غرف نوم' },
-  { id: 'relax', icon: 'amenityRelax', title: 'استرخاء' },
-];
-
-const DEMO_GALLERY = [
-  { src: 'assets/hero-photo-dusk.webp', alt: 'أمازون شاليه عند الغروب', wide: true },
-  { src: 'assets/hero-photo-day.webp', alt: 'المسبح نهارًا', wide: true },
-  { src: 'assets/gallery-pool.webp', alt: 'المسبح الخاص' },
-  { src: 'assets/gallery-bedroom.webp', alt: 'غرفة النوم' },
-  { src: 'assets/gallery-bbq.webp', alt: 'منطقة الشواء' },
-  { src: 'assets/gallery-football.webp', alt: 'ملعب الكرة' },
-  { src: 'assets/gallery-playground.webp', alt: 'ألعاب الأطفال' },
-  { src: 'assets/calendar-accent.webp', alt: 'المسبح ليلاً' },
-];
-
-const DEMO_PACKAGES = [
-  { key: 'morning', icon: 'sun', name: 'صباحي', start_time: '08:00', end_time: '13:00', price: 25 },
-  { key: 'evening', icon: 'sunset', name: 'مسائي', start_time: '16:00', end_time: '22:00', price: 30 },
-  { key: 'full_day', icon: 'home', name: 'يوم كامل', start_time: '08:00', end_time: '22:00', price: 45 },
-  { key: 'overnight', icon: 'moon', name: 'مع المبيت', start_time: '16:00', end_time: '12:00', price: 65 },
-];
-
-/* Package icon mapping (kept in sync with admin/js/admin.js) */
-const PACKAGE_ICON_MAP = { morning: 'sun', evening: 'moon', full_day: 'fullDay', overnight: 'home' };
+/* 40 → ٤٠ */
+const arabicDigits = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 
 /* =========================================================
    HEADER SCROLL
@@ -99,15 +67,17 @@ document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
    FOOTER
    ========================================================= */
 document.getElementById('year').textContent = new Date().getFullYear();
-const footerWhatsapp = document.getElementById('footerWhatsapp');
-if (footerWhatsapp) footerWhatsapp.href = `https://wa.me/${WHATSAPP_NUMBER}`;
-const footerPhone = document.getElementById('footerPhone');
-if (footerPhone) footerPhone.textContent = WHATSAPP_NUMBER.replace(/^968/, '');
+// phone, WhatsApp and Instagram links are bound from the config (data-cfg in index.html)
+
+/* The owner's settings (contact, location, prices policy, texts) override the defaults */
+if (typeof fetchSiteSettings === 'function') {
+  fetchSiteSettings().then(row => { if (row) SiteConfig.update(row); }).catch(() => {});
+}
 
 /* =========================================================
    AMENITIES — RENDER IMMEDIATELY
    ========================================================= */
-function renderAmenities(amenities = DEMO_AMENITIES) {
+function renderAmenities(amenities = cfg().features) {
   const row = document.getElementById('amenitiesRow');
   row.innerHTML = amenities.map((a, i) => `
     <div class="amenity-item" style="animation-delay:${i * 60}ms">
@@ -131,7 +101,7 @@ if (typeof fetchFeatures === 'function') {
 let galleryItems = [];
 let galleryInitialized = false;
 
-function renderGallery(images = DEMO_GALLERY) {
+function renderGallery(images = cfg().gallery) {
   const grid = document.getElementById('galleryGrid');
   galleryItems = images;
 
@@ -158,12 +128,20 @@ const gallerySection = document.getElementById('gallery');
 if (gallerySection) {
   const galleryObserver = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting && !galleryInitialized) {
-      renderGallery(realGalleryData || DEMO_GALLERY);
+      renderGallery(realGalleryData || cfg().gallery);
       galleryObserver.disconnect();
     }
   }, { threshold: 0.1 });
   galleryObserver.observe(gallerySection);
 }
+
+/* No photos at all (a brand-new client): hide the section and its menu links instead of showing an empty grid */
+function toggleGallerySection() {
+  const has = !!((realGalleryData && realGalleryData.length) || cfg().gallery.length);
+  if (gallerySection) gallerySection.hidden = !has;
+  document.querySelectorAll('a[href="#gallery"]').forEach(a => { a.hidden = !has; });
+}
+toggleGallerySection();
 
 if (typeof fetchGalleryImages === 'function') {
   fetchGalleryImages().then(images => {
@@ -175,12 +153,13 @@ if (typeof fetchGalleryImages === 'function') {
         }
         return {
           src: finalSrc,
-          alt: img.alt_text || CHALET_NAME,
+          alt: img.alt_text || cfg().brand.name,
           wide: !!img.wide,
           isVideo: img.media_type === 'video',
         };
       });
       if (galleryInitialized) renderGallery(realGalleryData);
+      toggleGallerySection();
     }
   }).catch(() => {});
 }
@@ -249,18 +228,18 @@ const MONTH_LABELS = ['يناير','فبراير','مارس','أبريل','ما�
 
 let viewYear = new Date().getFullYear();
 let viewMonth = new Date().getMonth();
-let packagesData = DEMO_PACKAGES;
+let packagesData = normalizePackages(cfg().packages);
 let calendarData = { avail: {}, holds: {} };   // data of the month on screen
 const monthCache = {};                         // 'YYYY-MM' -> calendarData
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function dateKey(y, m, d) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
 function monthKey(y, m) { return `${y}-${pad(m + 1)}`; }
-function isWeekendDate(y, m, d) { return WEEKEND_DAYS.includes(new Date(y, m, d).getDay()); }
+function isWeekendDate(y, m, d) { return cfg().pricing.weekendDays.includes(new Date(y, m, d).getDay()); }
 
 /* What every period of a day looks like (open / pending / closed) */
 function slotsForDate(key) {
-  return resolveDaySlots(calendarData.avail[key], calendarData.holds[key] || []);
+  return resolveDaySlots(calendarData.avail[key], calendarData.holds[key] || [], packagesData);
 }
 
 async function loadCalendarData(year, month) {
@@ -324,7 +303,7 @@ refreshCalendar();
 /* =========================================================
    BOOKING PRICE (dynamic, from Admin Panel)
    ========================================================= */
-function renderBookingPrice(packages = DEMO_PACKAGES) {
+function renderBookingPrice(packages = packagesData) {
   const priceEl = document.getElementById('bookingPrice');
   if (!priceEl || !packages || !packages.length) return;
   const minPrice = Math.min(...packages.map(p => p.price));
@@ -338,6 +317,7 @@ if (typeof fetchPackages === 'function') {
     if (data && data.length) {
       packagesData = data;
       renderBookingPrice(data);
+      renderCalendar(calendarData);
     }
   }).catch(() => {});
 }
@@ -354,14 +334,16 @@ if (typeof isSupabaseReady === 'function' && isSupabaseReady()) {
       .channel('site-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'availability' }, refreshCalendar)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'packages' }, () => {
-        if (typeof fetchPackages === 'function') {
-          fetchPackages().then(data => {
-            if (data && data.length) {
-              packagesData = data;
-              renderBookingPrice(data);
-            }
-          }).catch(() => {});
-        }
+        fetchPackages().then(data => {
+          if (data && data.length) {
+            packagesData = data;
+            renderBookingPrice(data);
+            renderCalendar(calendarData);
+          }
+        }).catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => {
+        fetchSiteSettings().then(row => { if (row) SiteConfig.update(row); }).catch(() => {});
       })
       .subscribe();
   } catch (e) {
@@ -421,12 +403,19 @@ function formatArabicDate(key) {
 }
 
 function priceWithWeekend(basePrice) {
-  return selectedIsWeekend ? basePrice + WEEKEND_SURCHARGE : basePrice;
+  return selectedIsWeekend ? basePrice + cfg().pricing.weekendSurcharge : basePrice;
 }
 
 function displayTimeRange(pkg) {
   if (pkg.start_time && pkg.end_time) return formatTimeRange(pkg.start_time, pkg.end_time);
   return pkg.time_range || '';
+}
+
+/* Deposit or full payment, depending on how close the date is */
+function paymentDue(finalPrice, key) {
+  const { fullPaymentDays, depositRatio } = cfg().pricing;
+  const isFullPayment = daysFromToday(key) < fullPaymentDays;
+  return { isFullPayment, requiredAmount: isFullPayment ? finalPrice : Math.round(finalPrice * depositRatio) };
 }
 
 function daysFromToday(key) {
@@ -461,18 +450,14 @@ async function openBookingModal(key) {
   dayCardStatus.className = 'day-card-status' + chip[0];
   dayCardStatus.innerHTML = `<i></i> ${chip[1]}`;
 
-  selectedIsWeekend = isWeekendDate(y, m - 1, d);
+  selectedIsWeekend = isWeekendDate(y, m - 1, d) && cfg().pricing.weekendSurcharge > 0;
   modalWeekendNote.innerHTML = selectedIsWeekend
-    ? `سعر عطلة نهاية الأسبوع: +${WEEKEND_SURCHARGE}&nbsp;${omr()} لكل الباقات`
+    ? `سعر عطلة نهاية الأسبوع: +${cfg().pricing.weekendSurcharge}&nbsp;${omr()} لكل الباقات`
     : '';
   modalWeekendNote.classList.toggle('weekend', selectedIsWeekend);
 
-  let packages = packagesData;
-  if (typeof fetchPackages === 'function') {
-    const fetched = await fetchPackages();
-    if (fetched && fetched.length) packages = fetched;
-  }
-  packagesData = packages;
+  const fetched = await fetchPackages();
+  if (fetched && fetched.length) packagesData = fetched;
 
   packageList.innerHTML = packagesData.map(pkg => {
     const slotState = slots[pkg.key] || 'open';
@@ -483,7 +468,7 @@ async function openBookingModal(key) {
       : '';
     return `<div class="package-item ${slotState === 'open' ? 'selectable' : slotState === 'pending' ? 'pending' : 'disabled'}" data-key="${pkg.key}">
       <div class="package-info">
-        <span class="package-icon">${icon(PACKAGE_ICON_MAP[pkg.key] || pkg.icon || 'sparkles', 20)}</span>
+        <span class="package-icon">${icon(pkg.icon, 20)}</span>
         <div>
           <div class="package-name">${pkg.name}</div>
           <div class="package-time">${displayTimeRange(pkg)}${note}</div>
@@ -522,17 +507,17 @@ function selectPackage(key) {
   `;
   bookingSummary.classList.add('show');
 
-  const daysAway = daysFromToday(selectedDateKey);
-  const isFullPayment = daysAway < FULL_PAYMENT_THRESHOLD_DAYS;
-  const requiredAmount = isFullPayment ? finalPrice : Math.round(finalPrice * DEPOSIT_PERCENT);
+  const { isFullPayment, requiredAmount } = paymentDue(finalPrice, selectedDateKey);
+  const { fullPaymentDays, depositPercent } = cfg().pricing;
+  const pct = arabicDigits(depositPercent);
 
   depositNote.innerHTML = `
     <div class="deposit-note-title">${icon('sparkles', 14)} لتأكيد الحجز</div>
     <div class="deposit-note-text">
-      إذا كان موعد الحجز بعد أكثر من ٣ أيام، يتم دفع عربون ٤٠٪. إذا كان موعد الحجز خلال أقل من ٣ أيام، يجب دفع قيمة الحجز كاملة.
+      إذا كان موعد الحجز بعد أكثر من ${arabicDigits(fullPaymentDays)} أيام، يتم دفع عربون ${pct}٪. إذا كان موعد الحجز خلال أقل من ${arabicDigits(fullPaymentDays)} أيام، يجب دفع قيمة الحجز كاملة.
     </div>
     <div class="deposit-note-amount">
-      <span class="label">${isFullPayment ? 'المبلغ المطلوب (دفع كامل)' : 'العربون المطلوب (٤٠٪)'}</span>
+      <span class="label">${isFullPayment ? 'المبلغ المطلوب (دفع كامل)' : `العربون المطلوب (${pct}٪)`}</span>
       <span class="value">${requiredAmount}&nbsp;${omr()}</span>
     </div>
   `;
@@ -569,9 +554,7 @@ whatsappBtn.addEventListener('click', async () => {
   if (!selectedPackage) return;
   
   const finalPrice = priceWithWeekend(selectedPackage.price);
-  const daysAway = daysFromToday(selectedDateKey);
-  const isFullPayment = daysAway < FULL_PAYMENT_THRESHOLD_DAYS;
-  const requiredAmount = isFullPayment ? finalPrice : Math.round(finalPrice * DEPOSIT_PERCENT);
+  const { isFullPayment, requiredAmount } = paymentDue(finalPrice, selectedDateKey);
 
   // Show loading state
   whatsappBtn.disabled = true;
@@ -590,8 +573,8 @@ whatsappBtn.addEventListener('click', async () => {
 
   // Create the booking (starts as a pending hold: the day turns orange in the calendar)
   const result = await createBooking({
-    customer_name: 'عميل جديد', // Will be updated from WhatsApp message
-    phone: WHATSAPP_NUMBER,
+    customer_name: 'عميل جديد',   // the customer's real name arrives in the WhatsApp conversation
+    phone: '',
     booking_date: selectedDateKey,
     period: selectedPackage.key,
     price: finalPrice,
@@ -608,16 +591,17 @@ whatsappBtn.addEventListener('click', async () => {
   refreshCalendar();
 
   // Compose WhatsApp message
+  const { brand, pricing, contact } = cfg();
   const msg = [
-    `مرحبًا، أرغب بحجز ${CHALET_NAME}`,
+    `مرحبًا، أرغب بحجز ${brand.name}`,
     `التاريخ: ${formatArabicDate(selectedDateKey)}`,
     `الباقة: ${selectedPackage.name} (${displayTimeRange(selectedPackage)})`,
-    `السعر الإجمالي: ${finalPrice} ر.ع${selectedIsWeekend ? ' (شامل سعر نهاية الأسبوع)' : ''}`,
-    `${isFullPayment ? 'المبلغ المطلوب دفعه (كامل)' : 'العربون المطلوب (٤٠٪)'}: ${requiredAmount} ر.ع`,
+    `السعر الإجمالي: ${finalPrice} ${pricing.currencyLabel}${selectedIsWeekend ? ' (شامل سعر نهاية الأسبوع)' : ''}`,
+    `${isFullPayment ? 'المبلغ المطلوب دفعه (كامل)' : `العربون المطلوب (${arabicDigits(pricing.depositPercent)}٪)`}: ${requiredAmount} ${pricing.currencyLabel}`,
   ].join('\n');
   
   // Open WhatsApp, then close the modal so the booking can't be sent twice
-  window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
+  window.open(`${cfg().links.whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
   resetBtn();
   modalOverlay.classList.remove('open');
   setStep(1);
@@ -638,5 +622,5 @@ modalOverlay.addEventListener('click', (e) => {
    MAP
    ========================================================= */
 document.getElementById('mapFrame').addEventListener('click', () => {
-  window.open('https://maps.google.com/?q=Jabal+Akhdar+Oman', '_blank');
+  window.open(cfg().links.directions, '_blank');
 });

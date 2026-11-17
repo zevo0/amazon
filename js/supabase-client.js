@@ -1,19 +1,17 @@
 /* =========================================================
    Supabase connection + data-access layer
-   Mobile-First Optimized with Enhanced Security
+   The project URL / anon key come from site.config.js
    ========================================================= */
-
-const SUPABASE_URL = 'https://ghnzdcxrrqoykswzmxuj.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_WQlEp2ETMNsSQFbuI8DXVg_xb45MR7L';
 
 let supabaseClient = null;
 
 try {
-  if (window.supabase) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { url, anonKey } = SiteConfig.current.supabase || {};
+  if (window.supabase && url && anonKey) {
+    supabaseClient = window.supabase.createClient(url, anonKey);
   }
 } catch (e) {
-  console.warn('Supabase not configured yet, using demo data.', e);
+  console.warn('Supabase not configured yet, using the defaults of site.config.js.', e);
 }
 
 const isSupabaseReady = () => !!supabaseClient;
@@ -76,6 +74,22 @@ async function fetchFeatures() {
 }
 
 /* ---- Packages (booking package types + prices) ---- */
+
+/* Packages that become unavailable when `pkg` is booked (always includes itself) */
+function closesOf(pkg) {
+  return [...new Set([pkg.key, ...(pkg.closes || [])])];
+}
+
+/* DB rows → what the UI uses. Older rows without icon / closes fall back to the same package in site.config.js. */
+function normalizePackages(rows) {
+  const defaults = (window.SiteConfig && SiteConfig.current && SiteConfig.current.packages) || [];
+  return (rows || []).map(p => {
+    const d = defaults.find(x => x.key === p.key) || {};
+    const closes = p.closes && p.closes.length ? p.closes : d.closes;
+    return { ...p, price: Number(p.price), icon: p.icon || d.icon || 'sparkles', closes: closesOf({ key: p.key, closes }) };
+  });
+}
+
 async function fetchPackages() {
   if (!isSupabaseReady()) return null;
   try {
@@ -87,7 +101,7 @@ async function fetchPackages() {
       console.warn('packages fetch failed', error);
       return null;
     }
-    return data;
+    return normalizePackages(data);
   } catch (e) {
     console.warn('packages fetch error', e);
     return null;
@@ -101,7 +115,7 @@ function monthRange(year, month) {
   return { start: `${year}-${mm}-01`, end: `${year}-${mm}-${String(last).padStart(2, '0')}` };
 }
 
-/* ---- Availability (manual open/closed per period) for a given month ---- */
+/* ---- Availability (periods closed by hand — `closed` = package keys) for a given month ---- */
 async function fetchAvailability(year, month) {
   if (!isSupabaseReady()) return null;
   try {

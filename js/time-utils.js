@@ -1,5 +1,5 @@
 /* =========================================================
-   أمازون شاليه — Time formatting helper
+   Time formatting helper
    Converts 24h "HH:MM" start/end times into the Arabic
    period-of-day label style used across the site, e.g.:
      08:00 -> ٨ص      (صباحًا)

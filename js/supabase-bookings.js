@@ -18,43 +18,39 @@ const BOOKING_STATUS = {
   CANCELLED: 'ملغاة',
 };
 
-const ALL_PERIODS = ['morning', 'evening', 'full_day', 'overnight'];
-
-/* Periods that become unavailable when a booking takes the given period */
-const PERIOD_CLOSES = {
-  full_day: ALL_PERIODS,
-  overnight: ALL_PERIODS,
-  morning: ['morning', 'full_day', 'overnight'],
-  evening: ['evening', 'full_day', 'overnight'],
-};
-
 /**
- * State of every period for one day.
- * @param {Object|null} manual  availability row (a period === false means closed by the owner)
- * @param {Array} holds         [{ period, status }] bookings of that day
- * @returns {{morning,evening,full_day,overnight}} each 'open' | 'pending' | 'closed'
+ * State of every package for one day.
+ * @param {Object|null} manual  availability row; `manual.closed` = package keys the owner closed by hand
+ * @param {Array} holds         [{ period, status }] bookings of that day (period = package key)
+ * @param {Array} packages      normalized packages — each one lists what it closes (`closes`)
+ * @returns {Object} package key -> 'open' | 'pending' | 'closed'
  *   pending = held by a booking waiting for payment (not paid yet)
  *   closed  = unavailable (paid, closed by the owner, or overlapping a booking)
  */
-function resolveDaySlots(manual, holds = []) {
-  const slots = {};
-  ALL_PERIODS.forEach(p => { slots[p] = manual && manual[p] === false ? 'closed' : 'open'; });
+function resolveDaySlots(manual, holds = [], packages = []) {
+  const closes = {};
+  packages.forEach(p => { closes[p.key] = closesOf(p); });
 
-  const active = holds.filter(h => PERIOD_CLOSES[h.period]);
+  const manualClosed = (manual && manual.closed) || [];
+  const slots = {};
+  packages.forEach(p => { slots[p.key] = manualClosed.includes(p.key) ? 'closed' : 'open'; });
+
+  const active = holds.filter(h => closes[h.period]);
   const paid = active.filter(h => h.status === BOOKING_STATUS.PAID);
   const pending = active.filter(h => h.status === BOOKING_STATUS.PENDING);
 
-  paid.forEach(h => PERIOD_CLOSES[h.period].forEach(p => { slots[p] = 'closed'; }));
-  pending.forEach(h => PERIOD_CLOSES[h.period].forEach(p => {
-    if (slots[p] !== 'open') return;
-    slots[p] = p === h.period ? 'pending' : 'closed';
+  paid.forEach(h => closes[h.period].forEach(k => { if (k in slots) slots[k] = 'closed'; }));
+  pending.forEach(h => closes[h.period].forEach(k => {
+    if (slots[k] !== 'open') return;
+    slots[k] = k === h.period ? 'pending' : 'closed';
   }));
   return slots;
 }
 
 /** One status for the whole day: 'available' | 'partial' | 'pending' | 'booked' */
 function summarizeDay(slots) {
-  const values = ALL_PERIODS.map(p => slots[p]);
+  const values = Object.values(slots);
+  if (!values.length) return 'available';
   if (values.includes('pending')) return 'pending';
   const open = values.filter(v => v === 'open').length;
   if (open === 0) return 'booked';

@@ -1,0 +1,10 @@
+{
+  "name": "booking-site",
+  "private": true,
+  "description": "Chalet booking site — one config file per client (site.config.js)",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check",
+    "new-client": "node scripts/new-client.mjs"
+  }
+}

@@ -3,10 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لوحة التحكم | أمازون شاليه</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%232A2F4C' width='100' height='100'/><text x='50' y='60' font-size='40' font-weight='bold' fill='%23C89B5A' text-anchor='middle' font-family='serif'>A</text></svg>">
+<title data-cfg="admin.title">لوحة التحكم | أمازون شاليه</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="css/admin.css">
 <link rel="stylesheet" href="../css/dialog.css">
+<!--cfg:theme-->
+<style>:root{--forest:#2A2F4C;--forest-deep:#1B1E33;--beige:#EDE6D7;--beige-soft:#F8F4EB;--charcoal:#2B2A28;--amber:#C89B5A;--amber-soft:#E2C48D;--aqua:#2CA0BE}</style>
+<!--/cfg:theme-->
 </head>
 <body>
 
@@ -14,7 +18,7 @@
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
     <div class="login-brand">
-      <div class="brand-ar">أمازون شاليه</div>
+      <div class="brand-ar" data-cfg="brand.name">أمازون شاليه</div>
       <div class="brand-en">ADMIN</div>
     </div>
     <h1>لوحة التحكم</h1>
@@ -26,7 +30,7 @@
       <input type="password" id="loginPassword" required placeholder="••••••••">
       <button type="submit" class="btn-login">تسجيل الدخول</button>
       <p class="login-error" id="loginError"></p>
-      <p class="login-hint">⚠️ لوحة التحكم محمية: يمكن للمسؤولين فقط الوصول إليها. تأكد من تفعيل Supabase Auth.</p>
+      <p class="login-hint">لوحة التحكم محمية — الدخول لحساب الإدارة فقط.</p>
     </form>
   </div>
 </div>
@@ -36,7 +40,7 @@
 
   <header class="dash-topbar">
     <div class="dash-brand">
-      <div class="brand-ar">أمازون شاليه</div>
+      <div class="brand-ar" data-cfg="brand.name">أمازون شاليه</div>
       <div class="brand-en">ADMIN</div>
     </div>
     <nav class="dash-jumpnav">
@@ -86,8 +90,11 @@
 
     <!-- PACKAGES -->
     <section class="dash-block" id="sec-packages">
-      <h2>إدارة الباقات</h2>
-      <p class="panel-hint">عدّل السعر ووقت البداية/النهاية لكل باقة مباشرة، ويُحفظ فورًا وينعكس على واجهة الحجز.</p>
+      <div class="panel-head">
+        <h2>إدارة الباقات</h2>
+        <button class="btn-add" id="addPackageBtn"><span class="btn-icon-inline" data-icon="plus"></span> إضافة باقة</button>
+      </div>
+      <p class="panel-hint">أضف باقاتك أو عدّل اسمها وسعرها ووقتها. «تُقفل عند حجزها» تحدد أي باقات تصير غير متاحة لما تُحجز هذه الباقة (مثلًا: حجز اليوم الكامل يقفل الصباحي والمسائي).</p>
       <div class="admin-list" id="packagesAdminList"></div>
     </section>
 
@@ -111,7 +118,7 @@
       <h2>إدارة الموقع الجغرافي</h2>
       <div class="form-grid">
         <label>اسم الموقع
-          <input type="text" id="locName" placeholder="أمازون شاليه - جبل الأخضر">
+          <input type="text" id="locName" placeholder="اسم المكان كما يظهر على الخريطة">
         </label>
         <label>الوصف
           <textarea id="locDesc" rows="3" placeholder="وصف مختصر عن الموقع"></textarea>
@@ -128,13 +135,31 @@
       <h2>الإعدادات العامة</h2>
       <div class="form-grid">
         <label>رقم واتساب (بدون + وبمقدمة رمز الدولة)
-          <input type="text" id="setWhatsapp" placeholder="96890000000">
+          <input type="text" id="setWhatsapp" placeholder="96890000000" inputmode="numeric">
         </label>
         <label>رابط انستقرام
           <input type="text" id="setInstagram" placeholder="https://instagram.com/...">
         </label>
-        <label>فيديو الغلاف الرئيسي (Hero Video)
-          <input type="file" id="setHeroImage" accept="video/*">
+        <label>العبارة تحت الشعار في أول الصفحة
+          <input type="text" id="setHeroSubtitle" placeholder="عبارة قصيرة">
+        </label>
+      </div>
+      <h3 class="sub-head">الأسعار والدفع</h3>
+      <div class="form-grid">
+        <label>زيادة نهاية الأسبوع (تُضاف على كل باقة)
+          <input type="number" id="setWeekend" min="0" step="any" placeholder="0">
+        </label>
+        <label>نسبة العربون (٪)
+          <input type="number" id="setDeposit" min="0" max="100" step="any" placeholder="40">
+        </label>
+        <label>إذا كان الحجز خلال أقل من (كم) يوم يُطلب الدفع كاملًا
+          <input type="number" id="setFullDays" min="0" step="1" placeholder="3">
+        </label>
+      </div>
+      <h3 class="sub-head">الشروط والأحكام</h3>
+      <div class="form-grid">
+        <label>كل سطر = بند. اتركه فارغًا لاستخدام النص الافتراضي
+          <textarea id="setTerms" rows="8" placeholder="اكتب الشروط هنا، كل بند في سطر"></textarea>
         </label>
       </div>
       <button class="btn-save" id="saveSettingsBtn">حفظ الإعدادات</button>
@@ -144,6 +169,8 @@
 </div>
 
 <script src="../js/lib/supabase.js" defer></script>
+<script src="../site.config.js" defer></script>
+<script src="../js/config.js" defer></script>
 <script src="../js/icons.js" defer></script>
 <script src="../js/dialog.js" defer></script>
 <script src="../js/time-utils.js" defer></script>

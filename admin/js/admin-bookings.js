@@ -1,5 +1,5 @@
 /* =========================================================
-   أمازون شاليه — Admin Bookings Management
+   Admin Bookings Management
    Status flow (see js/supabase-bookings.js):
      بانتظار العربون  →  [تم الدفع]  period locked in the calendar
                       →  [🗑]        status ملغاة: period released, counted in the stats
@@ -7,13 +7,6 @@
 
 let bookingsData = [];
 let bookingsInitialized = false;
-
-const PERIOD_LABELS = {
-  morning: 'صباحي',
-  evening: 'مسائي',
-  full_day: 'يوم كامل',
-  overnight: 'مع المبيت',
-};
 
 /**
  * Load bookings (Supabase or demo data) and render list + stats
@@ -107,9 +100,9 @@ function renderBookingsList() {
           ${rows.map(booking => `
             <tr data-booking-id="${booking.id}" class="${booking.status === BOOKING_STATUS.CANCELLED ? 'is-cancelled' : ''}">
               <td class="status-cell">${statusCell(booking)}</td>
-              <td>${booking.customer_name}</td>
+              <td>${uiEscape(booking.customer_name)}</td>
               <td>${formatDate(booking.booking_date)}</td>
-              <td>${PERIOD_LABELS[booking.period] || booking.period}</td>
+              <td>${uiEscape(periodLabel(booking.period))}</td>
               <td>${booking.price}&nbsp;${omr()}</td>
               <td>${booking.deposit_amount}&nbsp;${omr()}</td>
               <td>
@@ -160,7 +153,7 @@ async function handleBookingCancel(bookingId) {
 
   const wasPaid = booking.status === BOOKING_STATUS.PAID;
   const ok = await uiConfirm(
-    `${PERIOD_LABELS[booking.period] || ''} · ${formatDate(booking.booking_date)}\n` +
+    `${periodLabel(booking.period)} · ${formatDate(booking.booking_date)}\n` +
     (wasPaid ? 'هذا الحجز مدفوع. عند الإلغاء ستعود الفترة متاحة في التقويم.' : 'سيختفي الحجز المبدئي من التقويم وتعود الفترة متاحة.'),
     { title: 'إلغاء الحجز؟', confirmText: 'نعم، إلغاء الحجز', cancelText: 'تراجع', danger: true }
   );

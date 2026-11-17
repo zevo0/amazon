@@ -1,27 +1,47 @@
 -- =====================================================================
--- Amazon Chalet — Supabase schema (single source of truth)
+-- Booking site — Supabase schema (structure + permissions only)
 -- =====================================================================
--- يستبدل الملفات القديمة: supabase_schema.sql / create_bookings_table.sql / FIX_RLS_SAFE.sql
+-- • Identical for every client. What differs per client is the DATA:
+--   supabase/seed.sql is generated from site.config.js (run it after this file).
+-- • Safe to re-run (idempotent): never drops a table or deletes data. It also upgrades
+--   an older database (adds missing columns, migrates availability to the new format).
+-- • Columns match what the code uses (js/*.js, admin/js/*.js).
 --
--- • آمن لإعادة التشغيل (idempotent): لا يحذف أي جدول ولا أي بيانات.
--- • ينفع على قاعدة بيانات جديدة، وعلى قاعدة موجودة (يضيف الناقص ويعيد بناء السياسات فقط).
--- • الأعمدة مطابقة لما يستخدمه الكود فعليًا (js/*.js و admin/js/*.js).
+-- ORDER FOR A NEW CLIENT / FIRST RUN OF THIS VERSION
+--   1. Authentication ▸ Users: create the owner's account, then make it an admin (run once):
+--        update auth.users
+--           set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'
+--         where email = 'owner@example.com';
+--      (scripts/new-client.mjs writes this for you into client-setup.sql.)
+--      The owner must sign in again afterwards — the role is carried in the login token.
+--   2. Run this file.   3. Run supabase/seed.sql.
 --
--- طريقة التشغيل: Supabase Dashboard ▸ SQL Editor ▸ الصق الملف كامل ▸ Run
---
--- الصلاحيات (RLS):
---   - القراءة العامة: settings, gallery, features, packages, availability
---   - الكتابة: أي مستخدم مسجّل دخول (الأدمن الوحيد) — auth.role() = 'authenticated'
---   - bookings: الزائر يقدر يضيف حجز فقط (INSERT) ولا يقدر يقرأ الحجوزات؛ الأدمن يدير الكل
---   - calendar_bookings (view): الزائر يشوف (التاريخ، الفترة، الحالة) فقط للحجوزات النشطة — بدون اسم أو هاتف أو سعر
+-- PERMISSIONS (RLS) — who can do what
+--   public (visitors)  read: settings, gallery, features, packages, availability
+--                      insert: bookings, status 'بانتظار العربون' only (can't read them back)
+--                      read: the calendar_bookings view (date + period + status, no customer data)
+--   admin (owner)      everything above + manage all tables and the 'gallery' storage bucket
+--   Admin = a login whose token has app_metadata.role = 'admin'. A visitor who signs up
+--   by himself does NOT get it (users can't edit app_metadata), so "any logged-in user"
+--   is no longer enough to write.
 -- =====================================================================
 
 
 -- ---------------------------------------------------------------------
--- 1) Tables
+-- 1) Role helper
 -- ---------------------------------------------------------------------
 
--- settings: صف واحد فقط (id = 1) — admin.js يحفظ بـ .eq('id', 1)
+create or replace function public.is_admin() returns boolean
+language sql stable as $$
+  select coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'admin'
+$$;
+
+
+-- ---------------------------------------------------------------------
+-- 2) Tables
+-- ---------------------------------------------------------------------
+
+-- settings: a single row (id = 1) — the owner's editable settings
 create table if not exists public.settings (
   id                   integer primary key default 1 check (id = 1),
   whatsapp_number      text not null default '',
@@ -29,10 +49,15 @@ create table if not exists public.settings (
   map_embed_url        text,
   location_name        text,
   location_description text,
+  hero_subtitle        text,
+  terms_text           text,
+  weekend_surcharge    numeric,
+  deposit_percent      numeric,
+  full_payment_days    integer,
   updated_at           timestamptz default now()
 );
 
--- gallery: صور المعرض (image_path = رابط الصورة العام من Storage)
+-- gallery: photos (image_path = public URL from Storage)
 create table if not exists public.gallery (
   id         uuid primary key default gen_random_uuid(),
   image_path text not null,
@@ -43,7 +68,7 @@ create table if not exists public.gallery (
   created_at timestamptz default now()
 );
 
--- features: المميزات (icon = اسم أيقونة من js/icons.js)
+-- features: the amenities strip (icon = a name from js/icons.js)
 create table if not exists public.features (
   id         uuid primary key default gen_random_uuid(),
   title      text not null,
@@ -52,74 +77,85 @@ create table if not exists public.features (
   created_at timestamptz default now()
 );
 
--- packages: الباقات والأسعار
+-- packages: what can be booked. `closes` = keys that become unavailable when this one is booked.
 create table if not exists public.packages (
   id         uuid primary key default gen_random_uuid(),
-  key        text unique not null,            -- morning | evening | full_day | overnight
+  key        text unique not null,
   name       text not null,
+  icon       text,
   start_time text,                            -- 'HH:MM'
   end_time   text,                            -- 'HH:MM'
   price      numeric not null,
+  closes     text[] not null default '{}',
   sort_order integer,
   created_at timestamptz default now()
 );
 
--- availability: توفر الفترات لكل يوم (غير الموجود = متاح)
+-- availability: package keys the owner closed by hand for a day (no row = everything open)
 create table if not exists public.availability (
   id         uuid primary key default gen_random_uuid(),
   date       date unique not null,
-  morning    boolean default true,
-  evening    boolean default true,
-  full_day   boolean default true,
-  overnight  boolean default true,
+  closed     text[] not null default '{}',
   updated_at timestamptz default now()
 );
 
--- bookings: الحجوزات
+-- bookings
 create table if not exists public.bookings (
   id             uuid primary key default gen_random_uuid(),
   customer_name  text not null,
   phone          text not null,
   booking_date   date not null,
-  period         text not null,               -- morning | evening | full_day | overnight
+  period         text not null,               -- a package key
   price          numeric not null,
   deposit_amount numeric not null default 0,
   status         text not null default 'بانتظار العربون',  -- 'بانتظار العربون' | 'تم الدفع' | 'ملغاة'
   created_at     timestamptz default now()
 );
 
--- قواعد بيانات قديمة: أضف الأعمدة الناقصة إن لزم (لا تؤثر على الجديدة)
+
+-- ---------------------------------------------------------------------
+-- 3) Upgrade older databases (no effect on new ones)
+-- ---------------------------------------------------------------------
+
 alter table public.settings add column if not exists instagram_url        text;
 alter table public.settings add column if not exists map_embed_url        text;
 alter table public.settings add column if not exists location_name        text;
 alter table public.settings add column if not exists location_description text;
+alter table public.settings add column if not exists hero_subtitle        text;
+alter table public.settings add column if not exists terms_text           text;
+alter table public.settings add column if not exists weekend_surcharge    numeric;
+alter table public.settings add column if not exists deposit_percent      numeric;
+alter table public.settings add column if not exists full_payment_days    integer;
+alter table public.packages add column if not exists icon   text;
+alter table public.packages add column if not exists closes text[] not null default '{}';
+alter table public.availability add column if not exists closed text[] not null default '{}';
 alter table public.bookings add column if not exists deposit_amount numeric not null default 0;
 
+-- availability used to have one boolean column per period: move them into `closed`, then drop them
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'availability' and column_name = 'morning') then
+    update public.availability
+       set closed = array_remove(array[
+             case when morning   = false then 'morning'   end,
+             case when evening   = false then 'evening'   end,
+             case when full_day  = false then 'full_day'  end,
+             case when overnight = false then 'overnight' end], null)
+     where closed = '{}';
+    delete from public.availability where closed = '{}';
+    alter table public.availability
+      drop column morning, drop column evening, drop column full_day, drop column overnight;
+  end if;
+end $$;
+
 
 -- ---------------------------------------------------------------------
--- 2) Seed (لا يكتب فوق بيانات موجودة)
+-- 4) Row Level Security
+--    Fixed policy names (public_read_* / admin_write_*); the known old names are dropped first,
+--    so re-running gives the same result. Policies you created by hand are left alone.
 -- ---------------------------------------------------------------------
 
-insert into public.settings (whatsapp_number, location_name)
-select '96890992253', 'أمازون شاليه - جبل الأخضر'
-where not exists (select 1 from public.settings);
-
-insert into public.packages (key, name, start_time, end_time, price, sort_order) values
-  ('morning',   'صباحي',     '08:00', '13:00', 25, 1),
-  ('evening',   'مسائي',     '16:00', '22:00', 30, 2),
-  ('full_day',  'يوم كامل',  '08:00', '22:00', 45, 3),
-  ('overnight', 'مع المبيت', '16:00', '12:00', 65, 4)
-on conflict (key) do nothing;
-
-
--- ---------------------------------------------------------------------
--- 3) Row Level Security
---    نسمّي السياسات بنمط ثابت (public_read_* / admin_write_*) ونحذف
---    الأسماء القديمة المعروفة فقط قبلها، فالتشغيل المتكرر يعطي نفس النتيجة.
---    أي سياسة أخرى أنشأتها يدويًا من اللوحة ما تنحذف.
--- ---------------------------------------------------------------------
-
--- أسماء السياسات القديمة اللي كانت في الملفات السابقة (تُحذف إن وُجدت، ثم نعيد بناءها)
 do $$
 declare
   t text;
@@ -133,16 +169,13 @@ begin
     execute format('drop policy if exists %I on public.%I', 'admin_write_'  || t, t);
     execute format('drop policy if exists %I on public.%I', 'public_read_'  || t, t);
 
-    -- قراءة للكل
     execute format('create policy %I on public.%I for select using (true)', 'public_read_' || t, t);
-    -- كتابة للأدمن (أي مستخدم مسجّل دخول)
-    execute format(
-      'create policy %I on public.%I for all using (auth.role() = ''authenticated'') with check (auth.role() = ''authenticated'')',
-      'admin_write_' || t, t);
+    execute format('create policy %I on public.%I for all using (public.is_admin()) with check (public.is_admin())',
+                   'admin_write_' || t, t);
   end loop;
 end $$;
 
--- bookings: الأدمن يدير الكل، والزائر يضيف فقط (بدون قراءة)
+-- bookings: the owner manages everything, a visitor can only add
 alter table public.bookings enable row level security;
 
 drop policy if exists "Admins can view and manage all bookings" on public.bookings;
@@ -152,16 +185,15 @@ drop policy if exists admin_manage_bookings                     on public.bookin
 drop policy if exists public_insert_bookings                    on public.bookings;
 
 create policy admin_manage_bookings on public.bookings
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+  for all using (public.is_admin()) with check (public.is_admin());
 
 create policy public_insert_bookings on public.bookings
   for insert to anon, authenticated
   with check (status = 'بانتظار العربون');
 
-
--- التقويم العام: يعرض الحجوزات النشطة (محجوز مبدئيًا / تم الدفع) بدون أي بيانات عميل.
--- الـ view تعمل بصلاحيات مالكها عمدًا (تتجاوز RLS على bookings) وتكشف 3 أعمدة فقط.
--- الحجوزات "ملغاة" لا تظهر، فتعود الفترة متاحة تلقائيًا.
+-- Public calendar: active bookings (pending / paid) with NO customer data.
+-- Runs with its owner's rights on purpose (bypasses RLS on bookings) and exposes 3 columns only.
+-- Cancelled bookings are not listed, so their period is available again by itself.
 create or replace view public.calendar_bookings as
   select booking_date, period, status
   from public.bookings
@@ -169,12 +201,12 @@ create or replace view public.calendar_bookings as
 
 grant select on public.calendar_bookings to anon, authenticated;
 
--- Realtime للوحة التحكم (تحديث الحجوزات فور وصولها) — يُضاف مرة واحدة فقط
+-- Realtime: the dashboard sees new bookings at once, the site sees prices / closures / settings change
 do $$
 declare t text;
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    foreach t in array array['bookings', 'availability'] loop
+    foreach t in array array['bookings', 'availability', 'packages', 'settings'] loop
       if not exists (select 1 from pg_publication_tables
                      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
         execute format('alter publication supabase_realtime add table public.%I', t);
@@ -185,7 +217,7 @@ end $$;
 
 
 -- ---------------------------------------------------------------------
--- 4) Storage — bucket الصور (عام للقراءة، الرفع للأدمن فقط)
+-- 5) Storage — the photo bucket (public read, admin write)
 -- ---------------------------------------------------------------------
 
 insert into storage.buckets (id, name, public)
@@ -203,12 +235,12 @@ create policy gallery_public_read on storage.objects
   for select using (bucket_id = 'gallery');
 
 create policy gallery_admin_write on storage.objects
-  for all using (bucket_id = 'gallery' and auth.role() = 'authenticated')
-  with check (bucket_id = 'gallery' and auth.role() = 'authenticated');
+  for all using (bucket_id = 'gallery' and public.is_admin())
+  with check (bucket_id = 'gallery' and public.is_admin());
 
 
 -- ---------------------------------------------------------------------
--- 5) تنظيف: جدول admins القديم (كان فاضي وكسر الصلاحيات سابقًا)
+-- 6) Cleanup: the old `admins` table (empty, and it once broke the permissions)
 -- ---------------------------------------------------------------------
 
 drop table if exists public.admins cascade;
